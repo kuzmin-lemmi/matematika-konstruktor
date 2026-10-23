@@ -120,15 +120,17 @@ if (MODE === 'check') {
 
 // ---------- 5. Коммит, PR, слияние ----------
 step('Сайт: ветка, коммит, PR, слияние');
-const changed = sh('git status --porcelain', SITE, { quiet: true }).split('\n').filter(Boolean).map(l => l.slice(3).replace(/^"|"$/g, ''));
-if (!changed.length) log('Изменений на сайте нет — материал уже опубликован в этом виде. Перехожу к проверке живого сайта.');
+// git status может показать файл изменённым только из-за переводов строк (LF/CRLF) — что реально меняется,
+// видно после git add: смотрим индекс
+sh(`git add -- ${MATERIAL_PATHS.map(p => `"${p}"`).join(' ')}`, SITE, { quiet: true });
+const changed = sh('git diff --cached --name-only', SITE, { quiet: true }).split('\n').filter(Boolean);
+if (!changed.length) log('Изменений на сайте нет — материал уже опубликован в этом виде. Перехожу к публикации и проверке сайта.');
 else {
   const isNew = !sh(`git ls-tree -r --name-only origin/main -- public/materials/${slug}.html`, SITE, { quiet: true }).trim();
   const msg = isNew ? `Добавь материал «${title}» и его карточку` : `Обнови материал «${title}»`;
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
   const br = `material/${slug}-${stamp}`;
-  sh(`git switch -c ${br}`, SITE, { quiet: true });
-  sh(`git add -- ${MATERIAL_PATHS.map(p => `"${p}"`).join(' ')}`, SITE, { quiet: true });
+  sh(`git switch -c ${br}`, SITE, { quiet: true });   // индекс с изменениями переходит в новую ветку
   log(changed.map(p => '  ' + p).join('\n'));
   writeFileSync(join(SITE, '.git', 'MATSHAG_MSG'), `${msg}\n\nОпубликовано конструктором материалов (npm run publish).\n`);
   sh('git commit -q -F .git/MATSHAG_MSG', SITE, { quiet: true });
