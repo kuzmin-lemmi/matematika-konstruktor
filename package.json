@@ -3,10 +3,15 @@
   "private": true,
   "type": "module",
   "description": "Конструктор материалов «Матшага»: общее ядро + тема → один HTML-файл для сайта",
-  "engines": { "node": ">=22.13.0" },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "build": "node tools/build.mjs",
     "new": "node tools/new.mjs",
+    "show": "node tools/show.mjs",
+    "check": "node tools/publish.mjs check",
+    "publish": "node tools/publish.mjs publish",
     "test": "node --test \"tests/*.test.mjs\"",
     "snapshot": "node tools/snapshot.mjs"
   },
