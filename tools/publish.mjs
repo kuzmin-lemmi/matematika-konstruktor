@@ -183,8 +183,9 @@ if (!existsSync(snap)) {
   log(`✓ tests/snapshots/${slug}.frozen.json`);
 } else log('· снимок уже есть — тест следит, чтобы варианты не менялись');
 if (existsSync(join(ROOT, '.git'))) {
-  sh('git add -A', ROOT, { quiet: true });
-  if (sh('git status --porcelain', ROOT, { quiet: true }).trim()) {
+  // коммитим только то, что относится к опубликованной теме: её файлы и снимок вариантов
+  sh(`git add -- "materials/${slug}" "tests/snapshots/${slug}.frozen.json"`, ROOT, { quiet: true });
+  if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) {
     writeFileSync(join(ROOT, '.git', 'MATSHAG_MSG'), `Опубликуй тему «${title}»\n`);
     sh('git commit -q -F .git/MATSHAG_MSG', ROOT, { quiet: true });
     log('✓ конструктор закоммичен');
