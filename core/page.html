@@ -1,0 +1,129 @@
+<!doctype html>
+<!--{{BANNER}}-->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{title}} — Матшаг</title>
+<meta name="description" content="{{description}}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- знаки, которых может не быть в Golos Text (∠ △ ∥ ⊥ π ≠ ∞ □ ≥ ≤ ±), — подмножество Noto Sans Math -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Math&text=%E2%88%A0%E2%96%B3%E2%88%A5%E2%8A%A5%CF%80%E2%89%A0%E2%88%9E%E2%96%A1%E2%89%A5%E2%89%A4%C2%B1&display=swap" rel="stylesheet">
+<style>
+/*{{CSS}}*/
+</style>
+</head>
+<body>
+
+<!-- стартовый экран -->
+<section id="start" class="screen" hidden>
+  <a class="tosite no-print" id="toSite" target="_top" hidden>← Назад на сайт</a>
+  <div class="topright no-print">
+    <button class="icon" id="themeBtn" type="button" title="Светлая или тёмная тема" aria-label="Сменить тему">◐</button>
+  </div>
+  <div class="wrap">
+    <p class="kicker">{{kicker}}</p>
+    <h1>{{title}}</h1>
+    <p class="lead">{{lead}}</p>
+    <div class="modes">
+      <button class="mode" type="button" data-go="board"><b>🖥 На доске</b><span>{{modeBoard}}</span></button>
+{{PRINT_CARD}}
+      <button class="mode" type="button" data-go="home"><b>🏠 Тренировка</b><span>{{modeHome}}</span></button>
+    </div>
+  </div>
+</section>
+
+<!-- доска -->
+<section id="board" class="screen" hidden>
+  <div class="bbar">
+    <button class="icon" type="button" data-act="menu" title="Меню (Esc)" aria-label="Меню">☰</button>
+    <span class="ttl">{{title}}</span>
+    <span class="cnt" id="bCnt"></span>
+    <button type="button" data-act="restart" title="С первого шага" aria-label="Заново">↺<span class="t"> Заново</span></button>
+    <button type="button" data-act="numbers" title="Тот же показ с другими числами" aria-label="Другие числа">🎲<span class="t"> Другие числа</span></button>
+    <button type="button" data-act="notes" id="bNotesBtn" aria-pressed="false" title="Что сказать на этом шаге. Подсказку видно и на проекторе — включайте, когда нужно" aria-label="Подсказка учителю">💬<span class="t"> Учителю</span></button>
+    <button class="icon" type="button" data-act="theme" title="Светлая или тёмная тема" aria-label="Сменить тему">◐</button>
+    <button class="icon" type="button" data-act="full" title="Во весь экран (F)" aria-label="Во весь экран">⛶</button>
+  </div>
+  <div class="btext" aria-live="polite"><div class="q" id="bQ"></div><div class="a" id="bA"></div></div>
+  <div class="bstage" id="bStage"></div>
+  <div class="brec"><span class="rt-h">Запись в тетради</span><div id="bRec"></div></div>
+  <div class="bctl">
+    <button type="button" data-act="prev" title="Назад (←, PageUp)">← Назад</button>
+    <button type="button" class="main" data-act="next" id="bNext" title="Далее (→, Пробел, PageDown)">Показать ответ</button>
+  </div>
+  <div class="bnote" id="bNote" hidden></div>
+</section>
+
+<!-- раздатка -->
+<section id="print" class="screen" hidden>
+  <div class="wrap">
+    <div class="hhead no-print">
+      <button class="icon" type="button" data-act="menu" aria-label="Меню">☰</button>
+      <h2>{{printTitle}}</h2>
+    </div>
+    <div class="panel no-print">
+{{PRINT_KINDS}}
+      <div class="row">
+        <label>Вариантов <input type="number" id="pCount" min="1" max="40"></label>
+        <button type="button" id="pNew">Новые номера</button>
+        <label><input type="checkbox" id="pSpace"> место для решения (сетка)</label>
+        <label><input type="checkbox" id="pTwo"> два варианта на листе</label>
+      </div>
+      <label style="display:grid;gap:4px">Номера вариантов (можно вписать свои — ключ восстановится по номеру)
+        <input type="text" id="pNums" autocomplete="off" spellcheck="false">
+      </label>
+      <p class="note" id="pMsg"></p>
+      <div class="row">
+        <button type="button" class="main" id="pPrint">🖨 Печать листов</button>
+        <button type="button" id="pPrintKey">🔑 Печать ключа</button>
+      </div>
+      <p class="note"><span id="pAbout"></span> Печать — A4, поля браузера — «по умолчанию» или «нет».</p>
+    </div>
+    <div class="sheets" id="pSheets"></div>
+  </div>
+</section>
+
+<!-- тренажёр -->
+<section id="home" class="screen" hidden>
+  <div class="wrap">
+    <div class="hhead">
+      <button class="icon" type="button" data-act="menu" aria-label="Меню">☰</button>
+      <h2>{{homeTitle}}</h2>
+      <button type="button" data-act="help">📖 Справка</button>
+    </div>
+    <div id="hSetup">
+      <p>{{homeIntro}}</p>
+      <div class="levels" id="hLevels"></div>
+      <p class="note" id="hLinks"></p>
+    </div>
+    <div id="hPlay" hidden>
+      <div class="stats" id="hStats"></div>
+      <div class="card" style="margin-top:12px">
+        <div class="taskx" id="hTask"></div>
+        <div id="hStep"></div>
+        <div id="hFb"></div>
+        <div class="hbtns">
+          <button type="button" id="hHint">Подсказка (−<span id="hPen"></span>)</button>
+          <button type="button" class="main" id="hNext" hidden>Дальше →</button>
+        </div>
+      </div>
+    </div>
+    <div id="hEnd" hidden></div>
+  </div>
+</section>
+
+<div class="overlay" id="help" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpT">
+<!--{{HELP}}-->
+    <div class="hbtns"><button type="button" class="main" data-act="help-close">Понятно</button></div>
+  </div>
+</div>
+
+<script>
+//{{SCRIPT}}
+</script>
+</body>
+</html>
