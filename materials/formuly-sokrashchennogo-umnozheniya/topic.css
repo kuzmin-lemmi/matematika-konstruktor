@@ -1,0 +1,4 @@
+/* Тема «Формулы сокращённого умножения»: формула с пропущенным знаком или множителем */
+.fmu{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:.1em .25em}
+.fmu .fmuline{border-top:2.5px solid currentColor;padding-top:.08em;font-style:normal;white-space:nowrap}
+.fmu .fmuq{display:inline-block;min-width:1.3em;text-align:center;border-bottom:2px dashed currentColor;font-weight:700}

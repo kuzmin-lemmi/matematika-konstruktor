@@ -1,4 +1,1 @@
 node_modules/
-tmp/
-*.log
-constructor.config.local.json
