@@ -7,8 +7,10 @@
 
 Конструктор собирает материалы сайта **matshag.ru** (математика 5–9 классов, проект «Матшаг»): общее ядро `core/`
 + тема `materials/<slug>/` → один самодостаточный HTML в `public/materials/<slug>.html` сайта.
-Сайт — отдельный git-репозиторий (github.com/kuzmin-lemmi/matematika), путь к нему — в `constructor.config.json`
-(сейчас `C:/Users/admin/Desktop/matematika`). Публикация — GitHub Pages.
+Конструктор — репозиторий github.com/kuzmin-lemmi/matematika-konstruktor. Сайт — отдельный репозиторий
+(github.com/kuzmin-lemmi/matematika); его папка ищется так: `--site`, `MATSHAG_SITE`, `constructor.config.local.json`
+(путь на этом компьютере, не в git), `constructor.config.json`, папка `../matematika` рядом. Публикация — GitHub Pages.
+После работы с темами или ядром отправляй конструктор на GitHub (`git push`), иначе на другом компьютере изменений не будет.
 
 - Порядок работы над материалом, требования и известные ловушки — `.claude/skills/novyi-material/SKILL.md`
   (это обычный текстовый файл — прочитай его, каким бы агентом ты ни был).
