@@ -1,7 +1,8 @@
 // Тема «Формулы сокращённого умножения» (7 класс, Макарычев). Только содержание — каркас даёт ядро (core/).
 // Что тема обязана задать и как — ИНСТРУКЦИЯ.md, раздел «Из чего состоит тема».
 // Базовые формулы: (a ± b)² = a² ± 2ab + b², a² − b² = (a − b)(a + b), (a ± b)³.
-// Одночлен в теме — объект {k, m}: коэффициент k при (ab)^m, где m — сумма показателей у a и b.
+// Одночлен в задачах — объект {k, m}: k·x^m (одна буква x, m ≥ 1). У выражений A = k₁x^m₁ и B = k₂x^m₂
+// показатели разные (m₁ ≠ m₂): иначе a², 2ab и b² оказались бы подобными слагаемыми и слились бы в одно.
 
 // ================= Параметры: учитель может поменять их за минуту =================
 const CONFIG = {
@@ -26,84 +27,101 @@ const CONFIG = {
 const GEN_VERSION = 1;
 
 // ================= Запись формул =================
-const V = v => `<i>${v}</i>`;                    // переменная курсивом
+const VI = v => `<i>${v}</i>`;                    // переменная курсивом
 const PW = s => `<sup>${s}</sup>`;               // степень верхним регистром
-const MNU = n => (n < 0 ? MINUS : '') + Math.abs(n);
-const SG = n => (n < 0 ? ` ${MINUS} ` : ' + ');  // знак между слагаемыми
-const mono = x => (x.k === 1 ? '' : String(x.k)) + V('ab') + (x.m === 1 ? '' : PW(x.m));
-const monoK = x => `${x.k}ab^${x.m}`;            // ключ для таблицы букв и ответа
-const sumHTML = xs => xs.map(mono).reduce((acc, s, i) => acc + (i ? SG(xs[i].k) + s.replace(MINUS, '') : s), '');
-const sumKey = xs => xs.map(monoK).join('+');
-const binom = (A, sgn, B) => `(${mono({ k: A.k, m: A.m })} ${sgn > 0 ? '+' : MINUS} ${mono({ k: B.k, m: B.m })})`;
+const LA = VI('a'), LB = VI('b');
+const sgn = s => (s > 0 ? '+' : MINUS);
+const mono = x => (x.k === 1 ? '' : x.k) + X + (x.m === 1 ? '' : PW(x.m));
+// сумма одночленов со знаками: [{k: 4, m: 2}, {k: −12, m: 3}] → 4x² − 12x³
+const poly = xs => xs.map((x, i) => {
+  const s = mono({ k: Math.abs(x.k), m: x.m });
+  return i ? (x.k < 0 ? ` ${MINUS} ` : ' + ') + s : (x.k < 0 ? MINUS : '') + s;
+}).join('');
+const monoKey = x => `${x.k}x${x.m}`;            // ключ для таблицы букв и ответа
+const polyKey = xs => xs.map(monoKey).join(',');
 const sqOf = x => ({ k: x.k * x.k, m: 2 * x.m });
 const crOf = (A, B) => ({ k: 2 * A.k * B.k, m: A.m + B.m });
+const neg = x => ({ k: -x.k, m: x.m });
+const eqm = (u, v) => !!u && !!v && u.k === v.k && u.m === v.m;
+const binom = (A, s, B) => `(${mono(A)} ${sgn(s)} ${mono(B)})`;
+const prodDiff = (A, B) => `(${mono(A)} ${MINUS} ${mono(B)})(${mono(A)} + ${mono(B)})`;
+// формулы в тексте объяснений
+const FSQ = s => `(${LA} ${sgn(s)} ${LB})${PW(2)} = ${LA}${PW(2)} ${sgn(s)} 2${LA}${LB} + ${LB}${PW(2)}`;
+const FDIF = `${LA}${PW(2)} ${MINUS} ${LB}${PW(2)} = (${LA} ${MINUS} ${LB})(${LA} + ${LB})`;
+const FCUBE = s => `(${LA} ${sgn(s)} ${LB})${PW(3)} = ${LA}${PW(3)} ${sgn(s)} 3${LA}${PW(2)}${LB} + 3${LA}${LB}${PW(2)} ${sgn(s)} ${LB}${PW(3)}`;
+
+// Пара одночленов A, B с разными показателями; sign — знак в скобке
+function genAB(rnd, form, kmax, mmax) {
+  const A = { k: int(rnd, 1, kmax), m: int(rnd, 1, mmax) };
+  let B;
+  do B = { k: int(rnd, 1, kmax), m: int(rnd, 1, mmax) }; while (B.m === A.m);
+  return { form, sign: form === 'sqdif' ? -1 : 1, A, B };
+}
 
 // ================= Типы заданий =================
-// gen(rnd, form) — задание из зерна (никакого Math.random), bad(t) — вырожденные случаи, text(t) — запись,
-// ans(t) — ответ, ok(t) — объяснение верного, wrong(t, x) — {cat, msg} с вычислением, hints(t) — две подсказки,
+// gen(rnd, form) — задание из зерна (никакого Math.random), text(t) — запись, ans(t) — ответ,
+// ok(t) — объяснение верного, wrong(t, x) — {cat, msg} с вычислением, hints(t) — две подсказки,
 // key/keyHTML — ответ для ключа, traps(t) — ловушки [{key, html}], correct/wrongInput — ответы для теста-контракта.
 const bad = (cat, msg) => ({ cat, msg });
 
 const TYPES = {
-  expand: {   // раскрыть скобки: квадрат суммы, квадрат разности, разность квадратов — три одночлена
+  expand: {   // раскрыть скобки: квадрат суммы, квадрат разности, произведение разности и суммы
     input: 'poly', title: 'Раскрытие скобок',
     forms: ['sqsum', 'sqdif', 'diff'],
-    gen: (rnd, form) => {
-      form = form || pick(rnd, TYPES.expand.forms);
-      const sign = rnd() < 0.5 ? 1 : -1;
-      let t, guard = 0;
-      do {
-        const A = { k: int(rnd, 1, 4), m: int(rnd, 1, 6) }, B = { k: int(rnd, 1, 4), m: int(rnd, 1, 6) };
-        t = { form, sign, A, B };
-      } while (++guard < 100 && TYPES.expand.bad(t));
-      return t;
+    gen: (rnd, form) => genAB(rnd, form || pick(rnd, TYPES.expand.forms), 4, 3),
+    terms: t => {
+      const sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B);
+      return t.form === 'diff' ? [sa, neg(sb)] : [sa, t.form === 'sqdif' ? neg(cr) : cr, sb];
     },
-    bad: t => sqOf(t.A).k === sqOf(t.B).k && sqOf(t.A).m === sqOf(t.B).m,
-    terms: t => t.form === 'diff' ? [sqOf(t.A), { k: -sqOf(t.B).k, m: sqOf(t.B).m }]
-      : [sqOf(t.A), { ...(t.form === 'sqdif' ? { k: -crOf(t.A, t.B).k } : crOf(t.A, t.B)), m: crOf(t.A, t.B).m }, sqOf(t.B)],
-    text: t => t.form === 'diff' ? `${mono(sqOf(t.A))} ${MINUS} ${mono(sqOf(t.B))}` : `${binom(t.A, t.sign, t.B)}${PW(2)}`,
+    text: t => t.form === 'diff' ? prodDiff(t.A, t.B) : `${binom(t.A, t.sign, t.B)}${PW(2)}`,
     ask: t => `Раскройте скобки:  ${TYPES.expand.text(t)}`,
     sheet: t => `Раскройте скобки: ${TYPES.expand.text(t)}`,
-    answer: t => `${TYPES.expand.text(t)} = ${sumHTML(TYPES.expand.pos(t))}`,
-    pos: t => TYPES.expand.terms(t).map(x => ({ k: Math.abs(x.k), m: x.m })),
+    answer: t => `${TYPES.expand.text(t)} = ${poly(TYPES.expand.terms(t))}`,
     ans: t => TYPES.expand.terms(t),
-    same: (t, x) => x.length === TYPES.expand.terms(t).length &&
-      x.every((v, i) => v.k === TYPES.expand.terms(t)[i].k && v.m === TYPES.expand.terms(t)[i].m),
+    same: (t, x) => { const a = TYPES.expand.terms(t); return x.length === a.length && x.every((v, i) => eqm(v, a[i])); },
     ok(t) {
-      const T = TYPES.expand, tm = T.terms(t);
-      if (t.form === 'diff') return `a² − b² остаётся разностью двух квадратов, среднего члена нет: ${T.text(t)} = ${T.answer(t).split(' = ')[1]}.`;
-      return `(a ${t.sign > 0 ? '+' : MINUS} b)² = a² ${t.sign > 0 ? '+' : MINUS} 2ab + b²: 2 · ${mono(t.A)} · ${mono(t.B)} = ${mono(crOf(t.A, t.B))}, поэтому ${T.answer(t).split(' = ')[1]}.`;
+      const T = TYPES.expand, sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B);
+      if (t.form === 'diff') return `${FDIF}: (${mono(t.A)})${PW(2)} = ${mono(sa)}, (${mono(t.B)})${PW(2)} = ${mono(sb)}. Получаем ${poly(T.terms(t))}.`;
+      return `${FSQ(t.sign)}: 2 · ${mono(t.A)} · ${mono(t.B)} = ${mono(cr)}, квадраты — ${mono(sa)} и ${mono(sb)}. Получаем ${poly(T.terms(t))}.`;
     },
     wrong(t, x) {
-      const T = TYPES.expand, tm = T.terms(t), cr = crOf(t.A, t.B), ok = T.ok(t);
-      const eq = (u, v) => u.k === v.k && u.m === v.m;
-      if (x.length === 2 && eq(x[0], sqOf(t.A)) && eq(x[1], sqOf(t.B)))
-        return bad('middle', `Ты сложил квадраты, а нужно ТРИ слагаемых: удвоенное произведение 2 · ${mono(t.A)} · ${mono(t.B)} = ${mono(cr)} потерялось. ${ok}`);
-      if (x.length === 2 && eq(x[0], sqOf(t.A)) && eq(x[1], { k: -sqOf(t.B).k, m: sqOf(t.B).m }))
-        return bad('sign', `(a ${t.sign > 0 ? '+' : MINUS} b)² никогда не даёт a² − b²: последний член — ПЛЮС квадрат второго одночлена. ${ok}`);
-      if (x.length === 3 && eq(x[0], sqOf(t.A)) && eq(x[1], cr) && eq(x[2], sqOf(t.B)) && t.form === 'sqdif')
-        return bad('sign', `В квадрате РАЗНОСТИ средний член со знаком «${MINUS}»: (a − b)² = a² − 2ab + b². ${ok}`);
-      if (x.length === 3 && eq(x[0], sqOf(t.A)) && eq(x[1], { k: -cr.k, m: cr.m }) && eq(x[2], sqOf(t.B)) && t.form === 'sqsum')
-        return bad('sign', `Внутри скобки «+», значит и средний член 2ab со знаком «+»: (a + b)² = a² + 2ab + b². ${ok}`);
-      if (t.form === 'diff' && x.length === 3)
-        return bad('diff', `Разность квадратов раскладывается в ДВА множителя (a − b)(a + b) — никакого среднего члена 2ab здесь нет. ${ok}`);
-      return bad('calc', ok);
+      const T = TYPES.expand, sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B), at = T.terms(t), ok = T.ok(t);
+      const ab = { k: t.A.k * t.B.k, m: t.A.m + t.B.m };
+      if (t.form === 'diff') {
+        if (x.length === 2 && eqm(x[0], sa) && eqm(x[1], sb))
+          return bad('sign', `Между квадратами должен стоять «${MINUS}»: ${mono(sa)} ${MINUS} ${mono(sb)}, а не «+». ${ok}`);
+        if (x.length === 3)
+          return bad('diff', `Это не квадрат разности. В произведении суммы и разности всего ДВА слагаемых: средние члены ${mono(ab)} и ${MINUS}${mono(ab)} взаимно уничтожаются. ${ok}`);
+      } else {
+        if (x.length === 2 && eqm(x[0], sa) && eqm(x[1], sb))
+          return bad('middle', `Ты сложил квадраты, а нужно ТРИ слагаемых: потерялось удвоенное произведение 2 · ${mono(t.A)} · ${mono(t.B)} = ${mono(cr)}. ${ok}`);
+        if (x.length === 2 && eqm(x[0], sa) && eqm(x[1], neg(sb)))
+          return bad('sign', `(${LA} ${sgn(t.sign)} ${LB})${PW(2)} никогда не даёт ${LA}${PW(2)} ${MINUS} ${LB}${PW(2)}: последний член — ПЛЮС квадрат второго одночлена, а в середине стоит 2${LA}${LB}. ${ok}`);
+        if (x.length === 3 && eqm(x[0], sa) && eqm(x[2], sb)) {
+          if (eqm(x[1], neg(at[1])))
+            return bad('sign', t.sign > 0
+              ? `Внутри скобки «+», значит и средний член 2${LA}${LB} со знаком «+»: 2 · ${mono(t.A)} · ${mono(t.B)} = +${mono(cr)}. ${ok}`
+              : `В квадрате РАЗНОСТИ средний член со знаком «${MINUS}»: ${MINUS}2 · ${mono(t.A)} · ${mono(t.B)} = ${MINUS}${mono(cr)}. ${ok}`);
+          if (x[1].m === cr.m && Math.abs(x[1].k) * 2 === cr.k)
+            return bad('coef', `Средний член — УДВОЕННОЕ произведение: 2 · ${mono(t.A)} · ${mono(t.B)} = ${mono(cr)}, а ты записал одно произведение. ${ok}`);
+        }
+      }
+      if (!eqm(x[0], sa) || !eqm(x[x.length - 1], at[at.length - 1]))
+        return bad('power', `Проверь возведение в квадрат: (${mono(t.A)})${PW(2)} = ${mono(sa)} и (${mono(t.B)})${PW(2)} = ${mono(sb)} — в квадрат возводятся и коэффициент, и степень. ${ok}`);
+      return bad('calc', `Проверь вычисление среднего члена. ${ok}`);
     },
-    key: t => sumKey(TYPES.expand.terms(t)),
-    keyHTML: t => sumHTML(TYPES.expand.pos(t)),
+    key: t => polyKey(TYPES.expand.terms(t)),
+    keyHTML: t => poly(TYPES.expand.terms(t)),
     traps(t) {
-      const T = TYPES.expand, out = [];
-      if (t.form !== 'diff') {
-        out.push([sqOf(t.A), sqOf(t.B)]);                                        // забыли 2ab
-        if (t.form === 'sqdif') out.push([sqOf(t.A), { k: -sqOf(t.B).k, m: sqOf(t.B).m }]);   // a² − b²
-        else out.push([sqOf(t.A), { k: -crOf(t.A, t.B).k, m: crOf(t.A, t.B).m }, sqOf(t.B)]); // перепутали знак середины
-      } else out.push([sqOf(t.A), crOf(t.A, t.B), sqOf(t.B)]);                   // лишнее 2ab
-      return out.slice(0, CONFIG.print.traps).map(xs => ({ key: sumKey(xs), html: sumHTML(xs.map(x => ({ k: Math.abs(x.k), m: x.m }))) }));
+      const sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B);
+      const out = [[sa, sb], t.form === 'sqdif' ? [sa, neg(sb)] : [sa, neg(cr), sb]];   // забыли 2ab; перепутали знак
+      return out.slice(0, CONFIG.print.traps).map(xs => ({ key: polyKey(xs), html: poly(xs) }));
     },
     hints(t) {
-      const T = TYPES.expand;
-      if (t.form === 'diff') return ['a² − b² = (a − b)(a + b) — наоборот: сворачиваем разность квадратов, здесь два слагаемых.', `Первое слагаемое — ${mono(sqOf(t.A))}, второе — ${mono(sqOf(t.B))} со знаком «−».`];
-      return [`(a ${t.sign > 0 ? '+' : MINUS} b)² = a² ${t.sign > 0 ? '+' : MINUS} 2ab + b² — три слагаемых, крайние — всегда «+».`, `Начни так: ${mono(sqOf(t.A))} ${t.sign > 0 ? '+' : MINUS} ${mono(crOf(t.A, t.B))} + …`];
+      const sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B);
+      if (t.form === 'diff') return [`Произведение разности и суммы: ${FDIF.split(' = ').reverse().join(' = ')} — два слагаемых, среднего члена нет.`,
+        `Квадраты: (${mono(t.A)})${PW(2)} = ${mono(sa)} и (${mono(t.B)})${PW(2)} = ${mono(sb)}, между ними «${MINUS}».`];
+      return [`${FSQ(t.sign)} — три слагаемых, крайние всегда «+».`, `Начни так: ${mono(sa)} ${sgn(t.sign)} ${mono(cr)} + …`];
     },
     correct: t => TYPES.expand.ans(t),
     wrongInput: t => [{ k: sqOf(t.A).k + 2, m: sqOf(t.A).m }, ...TYPES.expand.ans(t).slice(1)],
@@ -113,59 +131,59 @@ const TYPES = {
     forms: ['sqsum', 'sqdif', 'cube'],
     gen: (rnd, form) => {
       form = form || pick(rnd, TYPES.fill.forms);
-      const sign = rnd() < 0.5 ? 1 : -1;
-      let t, guard = 0;
-      do {
-        const A = { k: int(rnd, 1, 3), m: int(rnd, 1, 4) }, B = { k: int(rnd, 1, 3), m: int(rnd, 1, 4) };
-        t = { form, sign, A, B };
-      } while (++guard < 100 && TYPES.fill.bad(t));
+      const t = genAB(rnd, form, form === 'cube' ? 3 : 4, form === 'cube' ? 2 : 3);
+      if (form === 'cube') t.sign = rnd() < 0.5 ? 1 : -1;
       return t;
     },
-    bad: t => sqOf(t.A).k === sqOf(t.B).k && sqOf(t.A).m === sqOf(t.B).m,
+    factor: t => (t.form === 'cube' ? 3 : 2),
     want: t => t.form === 'cube' ? { k: 3 * t.A.k * t.A.k * t.B.k, m: 2 * t.A.m + t.B.m } : crOf(t.A, t.B),
     text(t) {
-      const T = TYPES.fill;
-      if (t.form === 'cube') return `(${mono(t.A)} ${t.sign > 0 ? '+' : MINUS} ${mono(t.B)})${PW(3)} = ${mono(sqOf(t.A).k ? { k: t.A.k ** 3, m: 3 * t.A.m } : 0)} + <span class="fmuq">?</span> + ${mono({ k: 3 * t.A.k * t.B.k * t.B.k, m: t.A.m + 2 * t.B.m })} ${t.sign > 0 ? '+' : MINUS} ${mono({ k: t.B.k ** 3, m: 3 * t.B.m })}`;
-      return `(${mono(t.A)} ${t.sign > 0 ? '+' : MINUS} ${mono(t.B)})${PW(2)} = ${mono(sqOf(t.A))} ${t.sign > 0 ? '+' : MINUS} <span class="fmuq">?</span> + ${mono(sqOf(t.B))}`;
+      const q = '<span class="fmuq">?</span>';
+      if (t.form === 'cube') {
+        const cuA = { k: t.A.k ** 3, m: 3 * t.A.m }, cuB = { k: t.B.k ** 3, m: 3 * t.B.m }, c2 = { k: 3 * t.A.k * t.B.k * t.B.k, m: t.A.m + 2 * t.B.m };
+        return `<span class="nw">${binom(t.A, t.sign, t.B)}${PW(3)} =</span> <span class="nw">${mono(cuA)} ${sgn(t.sign)} ${q} + ${mono(c2)} ${sgn(t.sign)} ${mono(cuB)}</span>`;
+      }
+      return `<span class="nw">${binom(t.A, t.sign, t.B)}${PW(2)} =</span> <span class="nw">${mono(sqOf(t.A))} ${sgn(t.sign)} ${q} + ${mono(sqOf(t.B))}</span>`;
     },
-    ask: t => `Какой одночлен пропущен?  ${TYPES.fill.text(t)}`,
+    ask: t => `Какой одночлен пропущен?<br>${TYPES.fill.text(t)}`,
     sheet: t => `Запишите пропущенный одночлен: ${TYPES.fill.text(t)}`,
-    answer: t => `${mono(TYPES.fill.want(t))}`,
+    answer: t => `пропущен одночлен ${mono(TYPES.fill.want(t))}`,
     ans: t => TYPES.fill.want(t),
-    same: (t, x) => x.k === TYPES.fill.want(t).k && x.m === TYPES.fill.want(t).m,
+    same: (t, x) => eqm(x, TYPES.fill.want(t)),
     ok(t) {
-      const T = TYPES.fill;
-      if (t.form === 'cube') return `Во кубе коэффициенты 1, 3, 3, 1: 3a²b = 3 · (${mono(t.A)})² · ${mono(t.B)} = ${mono(T.want(t))}.`;
-      return `Между квадратами стоит удвоенное произведение: 2 · ${mono(t.A)} · ${mono(t.B)} = ${mono(T.want(t))}. В квадрате ${t.sign > 0 ? 'суммы' : 'разности'} оно идёт со знаком «${t.sign > 0 ? '+' : MINUS}».`;
+      const T = TYPES.fill, w = T.want(t);
+      if (t.form === 'cube') return `${FCUBE(t.sign)}: пропущен член 3${LA}${PW(2)}${LB} = 3 · (${mono(t.A)})${PW(2)} · ${mono(t.B)} = ${mono(w)}.`;
+      return `${FSQ(t.sign)}: между квадратами стоит удвоенное произведение 2 · ${mono(t.A)} · ${mono(t.B)} = ${mono(w)}. Знак «${sgn(t.sign)}» уже записан перед пропуском.`;
     },
     wrong(t, x) {
-      const T = TYPES.fill, w = T.want(t), ok = T.ok(t);
-      if (x.m === w.m && x.k * 2 === w.k) return bad('coef', `Забыл коэффициент ${w.k}: пропущенный член — это ${w.k === 2 ? 'удвоенное' : 'утроенное'} произведение, а не просто произведение. ${ok}`);
-      if (x.m !== w.m) return bad('power', `Показатели складываются: ${t.form === 'cube' ? `у a степень ${2 * t.A.m}, у b — ${t.B.m}` : `${t.A.m} + ${t.B.m} = ${w.m}`}. ${ok}`);
-      return bad('calc', ok);
+      const T = TYPES.fill, w = T.want(t), f = T.factor(t), ok = T.ok(t);
+      if (x.m === w.m && x.k * f === w.k)
+        return bad('coef', `Ты забыл множитель ${f}: пропущенный член — ${f === 2 ? 'удвоенное' : 'утроенное'} произведение, а не просто произведение. ${ok}`);
+      if (x.m !== w.m)
+        return bad('power', `При умножении одночленов показатели складываются: ${t.form === 'cube' ? `${2 * t.A.m} + ${t.B.m}` : `${t.A.m} + ${t.B.m}`} = ${w.m}, поэтому степень равна ${w.m}. ${ok}`);
+      return bad('calc', `Проверь коэффициент: ${t.form === 'cube' ? `3 · ${t.A.k}${PW(2)} · ${t.B.k}` : `2 · ${t.A.k} · ${t.B.k}`} = ${w.k}. ${ok}`);
     },
     key: t => monoKey(TYPES.fill.want(t)),
     keyHTML: t => mono(TYPES.fill.want(t)),
     traps(t) {
-      const w = TYPES.fill.want(t);
-      return [{ k: Math.max(1, Math.round(w.k / 2)), m: w.m }].map(x => ({ key: monoKey(x), html: mono(x) })).slice(0, CONFIG.print.traps);
+      const w = TYPES.fill.want(t), f = TYPES.fill.factor(t);
+      return [{ k: w.k / f, m: w.m }, { k: w.k, m: w.m + 1 }].slice(0, CONFIG.print.traps).map(x => ({ key: monoKey(x), html: mono(x) }));
     },
     hints(t) {
-      if (t.form === 'cube') return ['(a ± b)³ = a³ ± 3a²b + 3ab² ± b³ — коэффициенты 1, 3, 3, 1.', `Пропущен член 3a²b: коэффициент 3, показатели ${2 * t.A.m} и ${t.B.m}.`];
-      return ['Между двумя квадратами спрятано удвоенное произведение 2ab.', `Коэффициент 2, суммарный показатель ${t.A.m} + ${t.B.m} = ${t.A.m + t.B.m}.`];
+      if (t.form === 'cube') return [FCUBE(t.sign), `Пропущен член 3${LA}${PW(2)}${LB}: коэффициент 3 · ${t.A.k}${PW(2)} · ${t.B.k}, степень ${2 * t.A.m} + ${t.B.m}.`];
+      return ['Между двумя квадратами спрятано удвоенное произведение 2ab.', `Коэффициент: 2 · ${t.A.k} · ${t.B.k}; степень: ${t.A.m} + ${t.B.m}.`];
     },
     correct: t => TYPES.fill.ans(t),
     wrongInput: t => ({ k: TYPES.fill.want(t).k + 3, m: TYPES.fill.want(t).m }),
   },
   smart: {   // вычисление удобным способом: a² − b² = (a − b)(a + b)
     input: 'num', title: 'Удобным способом',
-    gen: rnd => {
-      const form = pick(rnd, ['int', 'dec']);
-      if (form === 'dec') { const k = int(rnd, 11, 99); return { form, k }; }
+    gen: (rnd, form) => {
+      form = form || pick(rnd, ['int', 'dec']);
+      if (form === 'dec') return { form, k: int(rnd, 11, 99), j: int(rnd, 1, 9) };
       return { form: 'int', a: int(rnd, 16, 49), d: int(rnd, 6, 15) };
     },
-    bad: t => t.form === 'int' && (t.a <= 0 || t.a + t.d >= 100),
-    pair: t => t.form === 'dec' ? [Q(t.k, 10), Q(5, 10)] : [Q(t.a + t.d), Q(t.a - t.d)],
+    pair: t => t.form === 'dec' ? [Q(t.k, 10), Q(t.j, 10)] : [Q(t.a + t.d), Q(t.a - t.d)],
     dec: q => decStr(q) || htmlQ(q, 'frac'),
     text: t => { const E = TYPES.smart, [x, y] = E.pair(t); return `${E.dec(x)}${PW(2)} ${MINUS} ${E.dec(y)}${PW(2)}`; },
     ask: t => `Вычислите удобным способом:  ${TYPES.smart.text(t)}`,
@@ -173,14 +191,14 @@ const TYPES = {
     ans: t => { const E = TYPES.smart, [x, y] = E.pair(t); return qsub(qmul(x, x), qmul(y, y)); },
     ok(t) {
       const E = TYPES.smart, [x, y] = E.pair(t), lo = qsub(x, y), hi = qadd(x, y);
-      return `a² − b² = (a − b)(a + b): (${E.dec(x)} ${MINUS} ${E.dec(y)}) · (${E.dec(x)} + ${E.dec(y)}) = ${E.dec(lo)} · ${E.dec(hi)} = ${htmlQ(E.ans(t))}.`;
+      return `${FDIF}: (${E.dec(x)} ${MINUS} ${E.dec(y)}) · (${E.dec(x)} + ${E.dec(y)}) = ${E.dec(lo)} · ${E.dec(hi)} = ${htmlQ(E.ans(t))}.`;
     },
     wrong(t, v) {
       const E = TYPES.smart, [x, y] = E.pair(t), ok = E.ok(t);
       const xs = qmul(x, x), ys = qmul(y, y), sum = qadd(x, y), dif = qsub(x, y);
-      if (qeq(v, qadd(xs, ys))) return bad('smart', `Здесь разность квадратов, а ты сложил квадраты: ${E.dec(x)}² + ${E.dec(y)}² = ${htmlQ(qadd(xs, ys))}. Нужно (a − b)(a + b). ${ok}`);
-      if (qeq(v, qmul(dif, dif)) || qeq(v, qmul(sum, sum))) return bad('smart', `Ты возвёл в квадрат разность (или сумму): это (a ∓ b)² — три слагаемых, а нужно a² − b² = (a − b)(a + b). ${ok}`);
-      if (qeq(v, sum) || qeq(v, dif)) return bad('smart', `Скобки нужно ПЕРЕМНОЖИТЬ: ${E.dec(sum)} · ${E.dec(dif)}, а не оставить только сумму или только разность. ${ok}`);
+      if (qeq(v, qadd(xs, ys))) return bad('smart', `Здесь разность квадратов, а ты сложил квадраты: ${E.dec(x)}${PW(2)} + ${E.dec(y)}${PW(2)} = ${htmlQ(qadd(xs, ys))}. Нужно (${LA} ${MINUS} ${LB})(${LA} + ${LB}). ${ok}`);
+      if (qeq(v, qmul(dif, dif)) || qeq(v, qmul(sum, sum))) return bad('smart', `Ты возвёл в квадрат разность (или сумму): это (${LA} ∓ ${LB})${PW(2)} — три слагаемых, а нужно ${LA}${PW(2)} ${MINUS} ${LB}${PW(2)} = (${LA} ${MINUS} ${LB})(${LA} + ${LB}). ${ok}`);
+      if (qeq(v, sum) || qeq(v, dif)) return bad('smart', `Скобки нужно ПЕРЕМНОЖИТЬ: ${E.dec(dif)} · ${E.dec(sum)}, а не оставить только сумму или только разность. ${ok}`);
       return bad('calc', `Разложим по формуле и посчитаем заново. ${ok}`);
     },
     traps(t) {
@@ -189,33 +207,29 @@ const TYPES = {
     },
     hints(t) {
       const E = TYPES.smart, [x, y] = E.pair(t);
-      return ['Видишь разность двух квадратов — сворачивай в произведение: (a − b)(a + b).', `a = ${E.dec(x)}, b = ${E.dec(y)}: a − b = ${E.dec(qsub(x, y))}, a + b = ${E.dec(qadd(x, y))}.`];
+      return [`Видишь разность двух квадратов — сворачивай в произведение: (${LA} ${MINUS} ${LB})(${LA} + ${LB}).`, `${LA} = ${E.dec(x)}, ${LB} = ${E.dec(y)}: ${LA} ${MINUS} ${LB} = ${E.dec(qsub(x, y))}, ${LA} + ${LB} = ${E.dec(qadd(x, y))}.`];
     },
   },
   value: {   // значение выражения a² − b² при данных значениях букв
     input: 'num', title: 'Значение выражения',
-    gen: rnd => {
-      const r = Q(int(rnd, 12, 40), 10), s = Q(int(rnd, 1, 11), 10);
-      return { r, s };
-    },
-    bad: t => t.r.n <= t.s.n,
-    text: t => `${V('a')}${PW(2)} ${MINUS} ${V('b')}${PW(2)}`,
-    ask: t => `Найдите значение выражения ${TYPES.value.text(t)}<br>при ${V('a')} = ${decStr(t.r)}, ${V('b')} = ${decStr(t.s)}.`,
-    sheet: t => `Найдите значение выражения ${TYPES.value.text(t)} при ${V('a')} = ${decStr(t.r)}, ${V('b')} = ${decStr(t.s)}.`,
-    answer: t => `${TYPES.value.text(t)} = ${decStr(TYPES.value.ans(t))} при ${V('a')} = ${decStr(t.r)}, ${V('b')} = ${decStr(t.s)}`,
+    gen: rnd => ({ r: Q(int(rnd, 12, 40), 10), s: Q(int(rnd, 1, 11), 10) }),
+    text: () => `${LA}${PW(2)} ${MINUS} ${LB}${PW(2)}`,
+    ask: t => `Найдите значение выражения ${TYPES.value.text(t)}<br>при ${LA} = ${decStr(t.r)}, ${LB} = ${decStr(t.s)}.`,
+    sheet: t => `Найдите значение выражения ${TYPES.value.text(t)} при ${LA} = ${decStr(t.r)}, ${LB} = ${decStr(t.s)}.`,
+    answer: t => `${TYPES.value.text(t)} = ${decStr(TYPES.value.ans(t))} при ${LA} = ${decStr(t.r)}, ${LB} = ${decStr(t.s)}`,
     ans: t => qsub(qmul(t.r, t.r), qmul(t.s, t.s)),
     ok(t) {
       const E = TYPES.value, lo = qsub(t.r, t.s), hi = qadd(t.r, t.s);
-      return `a² − b² = (a − b)(a + b) = (${decStr(t.r)} − ${decStr(t.s)}) · (${decStr(t.r)} + ${decStr(t.s)}) = ${decStr(lo)} · ${decStr(hi)} = ${decStr(E.ans(t))}.`;
+      return `${FDIF} = (${decStr(t.r)} ${MINUS} ${decStr(t.s)}) · (${decStr(t.r)} + ${decStr(t.s)}) = ${decStr(lo)} · ${decStr(hi)} = ${decStr(E.ans(t))}.`;
     },
     wrong(t, v) {
       const E = TYPES.value, ok = E.ok(t);
       const lo = qsub(t.r, t.s), hi = qadd(t.r, t.s);
-      if (qeq(v, qmul(lo, lo))) return bad('value', `Ты возвёл в квадрат РАЗНОСТЬ: (a − b)² = ${decStr(qmul(lo, lo))} — это три слагаемых. Здесь разность квадратов: a² − b² = (a − b)(a + b). ${ok}`);
-      if (qeq(v, qmul(hi, hi))) return bad('value', `Это квадрат СУММЫ (a + b)², а нужна разность квадратов: a² − b² = (a − b)(a + b). ${ok}`);
+      if (qeq(v, qmul(lo, lo))) return bad('value', `Ты возвёл в квадрат РАЗНОСТЬ: (${LA} ${MINUS} ${LB})${PW(2)} = ${decStr(qmul(lo, lo))} — это три слагаемых. Здесь разность квадратов: ${LA}${PW(2)} ${MINUS} ${LB}${PW(2)} = (${LA} ${MINUS} ${LB})(${LA} + ${LB}). ${ok}`);
+      if (qeq(v, qmul(hi, hi))) return bad('value', `Это квадрат СУММЫ (${LA} + ${LB})${PW(2)} = ${decStr(qmul(hi, hi))}, а нужна разность квадратов: ${LA}${PW(2)} ${MINUS} ${LB}${PW(2)} = (${LA} ${MINUS} ${LB})(${LA} + ${LB}). ${ok}`);
       if (qeq(v, qadd(qmul(t.r, t.r), qmul(t.s, t.s)))) return bad('calc', `В выражении стоит «${MINUS}»: квадрат ${decStr(t.s)} вычитаем, а не прибавляем. ${ok}`);
       if (qeq(v, lo) || qeq(v, hi)) return bad('calc', `Это только один множитель. Второй — ${qeq(v, lo) ? `сумма: ${decStr(hi)}` : `разность: ${decStr(lo)}`}. ${ok}`);
-      return bad('calc', ok);
+      return bad('calc', `Подставим числа в формулу и пересчитаем. ${ok}`);
     },
     traps(t) {
       const E = TYPES.value, lo = qsub(t.r, t.s);
@@ -223,109 +237,111 @@ const TYPES = {
         .filter(z => z.n > 0 && decStr(z) && !qeq(z, E.ans(t))).map(z => ({ key: keyQ(z), html: htmlQ(z) })).slice(0, CONFIG.print.traps);
     },
     hints(t) {
-      const E = TYPES.value;
-      return ['Не возводи в квадрат столбиком: подставь числа в a² − b² = (a − b)(a + b).', `a − b = ${decStr(qsub(t.r, t.s))}, a + b = ${decStr(qadd(t.r, t.s))}.`];
+      return [`Не возводи в квадрат столбиком: подставь числа в ${LA}${PW(2)} ${MINUS} ${LB}${PW(2)} = (${LA} ${MINUS} ${LB})(${LA} + ${LB}).`, `${LA} ${MINUS} ${LB} = ${decStr(qsub(t.r, t.s))}, ${LA} + ${LB} = ${decStr(qadd(t.r, t.s))}.`];
     },
   },
-  fact: {   // разложение на множители: выбрать верное
-    input: 'choice', title: 'Разложение на множители', options: [],
+  fact: {   // разложение на множители: выбрать верный вариант
+    input: 'pick', title: 'Разложение на множители',
     forms: ['diff', 'sqsum', 'sqdif'],
     gen: (rnd, form) => {
-      form = form || pick(rnd, TYPES.fact.forms);
-      let t, guard = 0;
-      do {
-        const A = { k: int(rnd, 1, 3), m: int(rnd, 1, 4) }, B = { k: int(rnd, 1, 3), m: int(rnd, 1, 4) };
-        t = { form, A, B, sign: rnd() < 0.5 ? 1 : -1 };
-      } while (++guard < 100 && TYPES.fact.bad(t));
+      const t = genAB(rnd, form || pick(rnd, TYPES.fact.forms), 3, 3);
+      t.o = int(rnd, 1, 1000000);   // порядок кнопок
       return t;
     },
-    bad: t => sqOf(t.A).k === sqOf(t.B).k && sqOf(t.A).m === sqOf(t.B).m,
-    text: t => t.form === 'diff' ? `${mono(sqOf(t.A))} ${MINUS} ${mono(sqOf(t.B))}`
-      : `${mono(sqOf(t.A))} ${SG(t.termsSign ? t.sign : t.sign)}${mono(crOf(t.A, t.B))} ${SG(t.sign)} ${mono(sqOf(t.B))}`,
-    right: t => t.form === 'diff' ? `${binom(t.A, 1, t.B)} · ${binom(t.A, -1, t.B)}` : binom(t.A, t.sign, t.B) + PW(2),
-    ask: t => `Разложите на множители:  ${TYPES.fact.text(t)}`,
+    text(t) {
+      const sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B);
+      return t.form === 'diff' ? `${mono(sa)} ${MINUS} ${mono(sb)}` : `${mono(sa)} ${sgn(t.sign)} ${mono(cr)} + ${mono(sb)}`;
+    },
+    right: t => t.form === 'diff' ? prodDiff(t.A, t.B) : `${binom(t.A, t.sign, t.B)}${PW(2)}`,
+    // неверные варианты: на них же строятся кнопки, ловушки раздатки и объяснения
+    wrongs(t) {
+      const sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B);
+      if (t.form === 'diff') return [
+        { key: 'fact:t1', html: `${binom(t.A, -1, t.B)}${PW(2)}`, cat: 'fact',
+          why: `Это квадрат разности: (${mono(t.A)} ${MINUS} ${mono(t.B)})${PW(2)} = ${poly([sa, neg(cr), sb])} — три слагаемых, а у нас разность двух квадратов.` },
+        { key: 'fact:t2', html: `${binom(t.A, 1, t.B)}${PW(2)}`, cat: 'fact',
+          why: `Это квадрат суммы: (${mono(t.A)} + ${mono(t.B)})${PW(2)} = ${poly([sa, cr, sb])} — тоже три слагаемых, а у нас два.` }];
+      const other = t.form === 'sqsum' ? 'sqdif' : 'sqsum', ot = { A: t.A, B: t.B, form: other, sign: -t.sign };
+      return [
+        { key: 'fact:t1', html: `${binom(t.A, -t.sign, t.B)}${PW(2)}`, cat: 'sign',
+          why: `Знак в скобке должен совпадать со знаком перед средним членом «${sgn(t.sign)}». Скобка (${mono(t.A)} ${sgn(-t.sign)} ${mono(t.B)})${PW(2)} даёт ${poly(TYPES.expand.terms(ot))}.` },
+        { key: 'fact:t2', html: prodDiff(t.A, t.B), cat: 'fact',
+          why: `${prodDiff(t.A, t.B)} = ${poly([sa, neg(sb)])} — два слагаемых. У нас три, средний член ${mono(cr)}: это полный квадрат.` }];
+    },
+    opts: t => [{ key: 'fact:ok', html: TYPES.fact.right(t) }, ...TYPES.fact.wrongs(t).map(({ key, html }) => ({ key, html }))],
+    ask: t => `Разложите на множители:<br>${TYPES.fact.text(t)}`,
     sheet: t => `Разложите на множители: ${TYPES.fact.text(t)}`,
     answer: t => `${TYPES.fact.text(t)} = ${TYPES.fact.right(t)}`,
-    ans: t => TYPES.fact.right(t),
-    same: (t, v) => v === TYPES.fact.right(t),
-    ok: t => `Проверим обратным умножением: ${TYPES.fact.right(t)} = ${TYPES.fact.text(t)}.`,
+    ans: () => 'fact:ok',
+    same: (t, v) => v === 'fact:ok',
+    ok: t => `Проверим обратным умножением: ${TYPES.fact.right(t)} = ${TYPES.fact.text(t)} (${t.form === 'diff' ? FDIF : FSQ(t.sign)}).`,
     wrong(t, v) {
-      const T = TYPES.fact;
-      if (t.form === 'diff' && v === binom(t.A, -1, t.B) + PW(2))
-        return bad('fact', `Это квадрат разности: (a − b)² = a² − 2ab + b² — три слагаемых. Разность квадратов раскладывается в ДВА множителя: ${T.right(t)}.`);
-      if (t.form !== 'diff' && v === `${binom(t.A, 1, t.B)} · ${binom(t.A, -1, t.B)}`)
-        return bad('fact', `Произведение (a + b)(a − b) даёт разность квадратов a² − b², а у тебя полный квадрат: три слагаемых и средний член 2ab. Ответ: ${T.right(t)}.`);
-      if (t.form !== 'diff' && v === binom(t.A, -t.sign, t.B) + PW(2))
-        return bad('sign', `Знак в скобке должен совпадать со знаком перед 2ab: при «${t.sign > 0 ? '+' : MINUS}» в середине это ${T.right(t)}.`);
-      return bad('fact', `Сравни с формулой: a² − b² = (a − b)(a + b); a² ± 2ab + b² = (a ± b)². Верный ответ: ${T.right(t)}.`);
+      const T = TYPES.fact, w = T.wrongs(t).find(x => x.key === v);
+      return bad(w ? w.cat : 'fact', `${w ? w.why : 'Сравни с формулами.'} ${T.ok(t)}`);
     },
-    key: t => TYPES.fact.keyOf(t),
-    keyOf: t => (t.form === 'diff' ? 'd' : t.sign > 0 ? 'p' : 'm'),
+    key: () => 'fact:ok',
     keyHTML: t => TYPES.fact.right(t),
-    traps(t) {
-      const T = TYPES.fact;
-      if (t.form === 'diff') return [{ key: 's', html: binom(t.A, 1, t.B) + PW(2) }, { key: 'm', html: binom(t.A, -1, t.B) + PW(2) }].slice(0, CONFIG.print.traps);
-      return [{ key: 'd', html: `${binom(t.A, 1, t.B)} · ${binom(t.A, -1, t.B)}` }, { key: t.sign > 0 ? 'm' : 'p', html: binom(t.A, -t.sign, t.B) + PW(2) }].slice(0, CONFIG.print.traps);
-    },
-    opts: t => [{ key: TYPES.fact.keyOf(t), html: TYPES.fact.right(t) }, ...TYPES.fact.traps(t)],
+    traps: t => TYPES.fact.wrongs(t).slice(0, CONFIG.print.traps).map(({ key, html }) => ({ key, html })),
     hints(t) {
-      if (t.form === 'diff') return ['Два квадрата и «−» между ними: a² − b² = (a − b)(a + b).', `Из первого члена корень ${mono(t.A)}, из второго ${mono(t.B)}.`];
-      return ['Три слагаемых, крайние — квадраты, среднее — 2ab: это полный квадрат (a ± b)².', `Скобка: ${binom(t.A, t.sign, t.B)}${PW(2)}.`];
+      if (t.form === 'diff') return [`Два квадрата и «${MINUS}» между ними: ${FDIF}.`, `Из первого члена получается ${mono(t.A)}, из второго — ${mono(t.B)}.`];
+      return [`Три слагаемых, крайние — квадраты, среднее — 2ab: это полный квадрат ${LA} ± ${LB} в квадрате.`, `Скобка: ${binom(t.A, t.sign, t.B)}${PW(2)}.`];
     },
+    correct: () => 'fact:ok',
+    wrongInput: t => TYPES.fact.wrongs(t)[0].key,
   },
   cube: {   // куб суммы и разности: выбрать верное раскрытие
-    input: 'choice', title: 'Куб суммы и разности', options: [],
+    input: 'pick', title: 'Куб суммы и разности',
     gen: rnd => {
-      let t, guard = 0;
-      do {
-        const A = { k: int(rnd, 1, 3), m: int(rnd, 1, 3) }, B = { k: int(rnd, 1, 3), m: int(rnd, 1, 3) };
-        t = { A, B, sign: rnd() < 0.5 ? 1 : -1 };
-      } while (++guard < 100 && TYPES.cube.bad(t));
+      const t = genAB(rnd, 'cube', 3, 2);
+      t.sign = rnd() < 0.5 ? 1 : -1;
+      t.o = int(rnd, 1, 1000000);
       return t;
     },
-    bad: t => t.A.k === t.B.k && t.A.m === t.B.m,
     parts: t => ({ cu: { k: t.A.k ** 3, m: 3 * t.A.m }, c1: { k: 3 * t.A.k ** 2 * t.B.k, m: 2 * t.A.m + t.B.m },
       c2: { k: 3 * t.A.k * t.B.k ** 2, m: t.A.m + 2 * t.B.m }, cb: { k: t.B.k ** 3, m: 3 * t.B.m } }),
-    line: t => {
-      const P = TYPES.cube.parts(t), sgn = t.sign > 0 ? '+' : MINUS;
-      return `${mono(P.cu)} + ${mono(P.c1)} ${sgn} ${mono(P.c2)} ${sgn} ${mono(P.cb)}`;
+    line: (t, s = t.sign) => {
+      const P = TYPES.cube.parts(t);
+      return `${mono(P.cu)} ${sgn(s)} ${mono(P.c1)} + ${mono(P.c2)} ${sgn(s)} ${mono(P.cb)}`;
     },
     text: t => `${binom(t.A, t.sign, t.B)}${PW(3)}`,
-    ask: t => `Раскройте скобки:  ${TYPES.cube.text(t)}`,
+    ask: t => `Раскройте скобки:<br>${TYPES.cube.text(t)}`,
     sheet: t => `Раскройте скобки: ${TYPES.cube.text(t)}`,
     answer: t => `${TYPES.cube.text(t)} = ${TYPES.cube.line(t)}`,
-    ans: t => TYPES.cube.line(t),
-    same: (t, v) => v === TYPES.cube.line(t),
-    ok: t => `Коэффициенты 1, 3, 3, 1; степени у первой буквы убывают, у второй растут. Знаки чередуются через «${t.sign > 0 ? '+' : MINUS}»: ${TYPES.cube.line(t)}.`,
-    wrong(t, v) {
-      const T = TYPES.cube, flip = { ...t, sign: -t.sign };
-      if (v === T.line(flip)) return bad('sign', `Знаки: в (${mono(t.A)} ${t.sign > 0 ? '+' : MINUS} ${mono(t.B)})³ члены 3a²b и b³ берутся со знаком «${t.sign > 0 ? '+' : MINUS}». ${T.ok(t)}`);
-      const P = T.parts(t);
-      if (v === `${mono(P.cu)} + ${mono(P.cb)}` || v === `${mono(P.cu)} ${MINUS} ${mono(P.cb)}`)
-        return bad('cube', `У куба ЧЕТЫРЕ слагаемых: пропали 3a²b = ${mono(P.c1)} и 3ab² = ${mono(P.c2)}. ${T.ok(t)}`);
-      if (v === `${binom(t.A, t.sign, t.B)}${PW(2)} · ${mono({ k: 1, m: 1 })}`) return bad('cube', T.ok(t));
-      return bad('cube', T.ok(t));
+    wrongs(t) {
+      const T = TYPES.cube, P = T.parts(t), mine = t.sign > 0 ? 'все «+»' : `чередуются: «${MINUS}», «+», «${MINUS}»`;
+      return [
+        { key: 'cube:t1', html: T.line(t, -t.sign), cat: 'sign',
+          why: `У ${t.sign > 0 ? 'суммы' : 'разности'} знаки ${mine}, а в этом ответе они как у ${t.sign > 0 ? 'разности' : 'суммы'}: ${T.line(t, -t.sign)}.` },
+        { key: 'cube:t2', html: `${mono(P.cu)} ${sgn(t.sign)} ${mono(P.cb)}`, cat: 'cube',
+          why: `У куба ЧЕТЫРЕ слагаемых: пропали ${mono(P.c1)} и ${mono(P.c2)} — это 3${LA}${PW(2)}${LB} и 3${LA}${LB}${PW(2)}.` }];
     },
-    key: t => TYPES.cube.keyOf(t),
-    keyOf: t => (t.sign > 0 ? 'p' : 'm'),
+    opts: t => [{ key: 'cube:ok', html: TYPES.cube.line(t) }, ...TYPES.cube.wrongs(t).map(({ key, html }) => ({ key, html }))],
+    ans: () => 'cube:ok',
+    same: (t, v) => v === 'cube:ok',
+    ok: t => `Коэффициенты 1, 3, 3, 1; знаки ${t.sign > 0 ? 'все «+»' : `чередуются: «${MINUS}», «+», «${MINUS}»`}. Получаем ${TYPES.cube.line(t)}.`,
+    wrong(t, v) {
+      const T = TYPES.cube, w = T.wrongs(t).find(x => x.key === v);
+      return bad(w ? w.cat : 'cube', `${w ? w.why : ''} ${T.ok(t)}`);
+    },
+    key: () => 'cube:ok',
     keyHTML: t => TYPES.cube.line(t),
-    traps(t) { const T = TYPES.cube; return [{ key: T.keyOf({ ...t, sign: -t.sign }), html: T.line({ ...t, sign: -t.sign }) }].slice(0, CONFIG.print.traps); },
-    opts: t => [{ key: TYPES.cube.keyOf(t), html: TYPES.cube.line(t) }, ...TYPES.cube.traps(t)],
+    traps: t => TYPES.cube.wrongs(t).slice(0, CONFIG.print.traps).map(({ key, html }) => ({ key, html })),
     hints(t) {
       const P = TYPES.cube.parts(t);
-      return ['(a ± b)³ = a³ ± 3a²b + 3ab² ± b³ — четыре слагаемых, коэффициенты 1, 3, 3, 1.', `Первые два члена: ${mono(P.cu)} + ${mono(P.c1)} …`];
+      return [`${FCUBE(t.sign)} — четыре слагаемых, коэффициенты 1, 3, 3, 1.`, `Первые два члена: ${mono(P.cu)} ${sgn(t.sign)} ${mono(P.c1)} …`];
     },
+    correct: () => 'cube:ok',
+    wrongInput: t => TYPES.cube.wrongs(t)[0].key,
   },
 };
-const monoKey = x => `${x.k}ab^${x.m}`;
 
 // ================= Ошибки: блок «Над чем поработать» =================
 const CATS = {
   middle: ['Забыт средний член', '(a ± b)² — это три слагаемых: a² ± 2ab + b². Средний член 2ab теряется чаще всего.'],
-  sign: ['Знак в формуле', 'В (a − b)² средний член со знаком «−», а последний член всегда «+». В кубе знаки чередуются.'],
+  sign: ['Знак в формуле', 'В (a − b)² средний член со знаком «−», а последний член всегда «+». В кубе разности знаки чередуются.'],
   diff: ['Разность квадратов', 'a² − b² = (a − b)(a + b): два множителя, среднего члена 2ab в ней нет.'],
   coef: ['Коэффициент', 'У квадрата средний член 2ab, у куба — 3a²b и 3ab²: коэффициенты 1, 3, 3, 1.'],
-  power: ['Степени', 'При умножении одночленов показатели складываются: a² · a³ = a⁵, (a²)³ = a⁶.'],
+  power: ['Степени', 'В квадрат возводятся и коэффициент, и степень: (3x²)² = 9x⁴. При умножении показатели складываются: x² · x³ = x⁵.'],
   calc: ['Вычисления', 'Проверь арифметику: сначала скобки (разность и сумма), потом умножение.'],
   smart: ['Выбор формулы', 'a² − b² = (a − b)(a + b), а (a − b)² = a² − 2ab + b². Это разные формулы.'],
   value: ['Подстановка', 'Подставляй числа в (a − b)(a + b): действий меньше, чем при возведении в квадрат.'],
@@ -335,78 +351,76 @@ const CATS = {
 
 // ================= Разделы тренажёра =================
 const SECTIONS = [
-  { title: 'Раздел 1', text: 'Раскрытие скобок', types: ['expand', 'fill'], ex: () => `(${V('a')} + ${V('b')})${PW(2)} = ?` },
-  { title: 'Раздел 2', text: 'Вычисления удобно', types: ['smart', 'value'], ex: () => `47² ${MINUS} 23²` },
-  { title: 'Раздел 3', text: 'Обратные формулы', types: ['fact', 'cube'], ex: () => `9${V('ab')}${PW(2)} ${MINUS} 16${V('ab')}${PW(2)}` },
+  { title: 'Раздел 1', text: 'Раскрытие скобок', types: ['expand', 'fill'], ex: () => `(${LA} + ${LB})${PW(2)} = ?` },
+  { title: 'Раздел 2', text: 'Вычисления удобно', types: ['smart', 'value'], ex: () => `47${PW(2)} ${MINUS} 23${PW(2)}` },
+  { title: 'Раздел 3', text: 'Обратные формулы', types: ['fact', 'cube'], ex: () => `9${X}${PW(2)} ${MINUS} 16` },
 ];
 
 // ================= Раздатка =================
 // Состав варианта: девять заданий, верные ответы складываются в слово из 9 разных букв
 const KINDS_V1 = [['expand', 'sqsum'], ['expand', 'sqdif'], ['expand', 'diff'], ['fill', 'sqsum'], ['fill', 'sqdif'],
   ['smart', 'int'], ['smart', 'dec'], ['value', null], ['fact', 'diff']];
-const WORDS_V1 = ['ВЕКТОРНАЯ', 'СТЕПЕНЬКА', 'ПОЛИНОМИК', 'БИНОМИАЛ', 'ТЕОРЕМКА', 'КОРРЕКТОР', 'ДЕЛИМОСТЬ', 'ПРОЦЕНТЫ', 'РАЦИОНАЛ'];
+const WORDS_V1 = ['ДЕЛИМОСТЬ', 'МНОЖИТЕЛЬ', 'ПРОДУКТИВ'];
 
 const PRINT = {
-  instr: 'Выполни задание и найди свой ответ в таблице букв. Впиши букву в клеточку под номером задания — в слове '
-    'пошла ошибка? Ищи её в решении. Если ответа нет в таблице, значит, ты допустил типичную ошибку.',
+  instr: 'Выполни задание и найди свой ответ в таблице букв. Впиши букву в клеточку под номером задания, и получится слово. '
+    + 'Если ответа нет в таблице, поищи ошибку в решении.',
   about: 'В каждом варианте девять заданий: три на раскрытие скобок, два на пропущенный одночлен, два на вычисление '
-    'удобным способом, одно на значение выражения и одно на разложение на множители. Девять верных ответов '
-    'складываются в слово.',
+    + 'удобным способом, одно на значение выражения и одно на разложение на множители. Девять верных ответов '
+    + 'складываются в слово.',
   ogeAbout: 'Бланк как в ОГЭ: восемь заданий, ответ — число (целое или десятичная дробь). Записывай его в клеточки '
-    'справа от номера: каждый символ, включая минус и запятую, — в отдельную клеточку. Задания бланка отличаются от '
-    'заданий листа «кодовое слово», поэтому один и тот же номер варианта можно использовать дважды.',
+    + 'справа от номера: каждый символ, включая минус и запятую, — в отдельную клеточку. Задания бланка отличаются от '
+    + 'заданий листа «кодовое слово», поэтому один и тот же номер варианта можно использовать дважды.',
 };
 
 // ================= Бланк ОГЭ =================
 // Ответ — число, которое помещается в клеточки (не длиннее 10 символов). Задания свои: зерна 200+,
 // поэтому лист бланка отличается от листа с кодовым словом при том же номере.
-const OGE_V1 = ['prod', 'lin', 'square', 'value', 'smartInt', 'smartDec', 'coef', 'cubeVal'];
+const OGE_V1 = ['dsq', 'sdec', 'sq', 'cross', 'lin', 'coef', 'cube', 'cancel'];
 function ogeTask(kind, rnd) {
-  if (kind === 'prod') {          // (a − b)(a + b) — произведение скобок доround
-    const a = int(rnd, 21, 49), b = int(rnd, 1, 20);
-    return { kind, ans: String((a - b) * (a + b)),
-      ask: `Найдите значение выражения (${a} − ${b}) · (${a} + ${b}), применив формулу сокращённого умножения.` };
+  if (kind === 'dsq') {           // a² − b² удобным способом
+    const a = int(rnd, 31, 69), b = int(rnd, 11, 29);
+    return { kind, t: [a, b], ans: String(a * a - b * b),
+      ask: `Найдите значение выражения ${a}${PW(2)} ${MINUS} ${b}${PW(2)}, применив формулу сокращённого умножения.` };
+  }
+  if (kind === 'sdec') {          // разность квадратов десятичных дробей
+    const p = int(rnd, 13, 39), q = int(rnd, 1, 9), r = qsub(qmul(Q(p, 10), Q(p, 10)), qmul(Q(q, 10), Q(q, 10)));
+    return { kind, t: [p, q], ans: decStr(r),
+      ask: `Найдите значение выражения ${decStr(Q(p, 10))}${PW(2)} ${MINUS} ${decStr(Q(q, 10))}${PW(2)}.` };
+  }
+  if (kind === 'sq') {            // (a + b)² − b² при b, кратном 10
+    const a = int(rnd, 2, 15), b = 10 * int(rnd, 1, 6);
+    return { kind, t: [a, b], ans: String(a * a + 2 * a * b),
+      ask: `Найдите значение выражения (${LA} + ${LB})${PW(2)} ${MINUS} ${LB}${PW(2)} при ${LA} = ${a}, ${LB} = ${b}.` };
+  }
+  if (kind === 'cross') {         // (a + b)² − (a − b)² = 4ab
+    const a = int(rnd, 2, 15), b = int(rnd, 1, 9);
+    return { kind, t: [a, b], ans: String(4 * a * b),
+      ask: `Найдите значение выражения (${LA} + ${LB})${PW(2)} ${MINUS} (${LA} ${MINUS} ${LB})${PW(2)} при ${LA} = ${a}, ${LB} = ${b}.` };
   }
   if (kind === 'lin') {           // (x + c)² − x² = m → линейное уравнение, корень целый
     const c = int(rnd, 2, 9), x = int(rnd, 2, 12), m = 2 * c * x + c * c;
-    return { kind, ans: String(x),
+    return { kind, t: [c, x], ans: String(x),
       ask: `Решите уравнение (${X} + ${c})${PW(2)} ${MINUS} ${X}${PW(2)} = ${m}. В ответ запишите корень.` };
   }
-  if (kind === 'square') {        // (a + b)² − b² при b, кратном 10
-    const a = int(rnd, 2, 15), b = 10 * int(rnd, 1, 6);
-    return { kind, ans: String(a * a + 2 * a * b),
-      ask: `Найдите значение выражения (${V('a')} + ${V('b')})${PW(2)} ${MINUS} ${V('b')}${PW(2)} при ${V('a')} = ${a}, ${V('b')} = ${b}.` };
-  }
-  if (kind === 'value') {         // (a + b)² − (a − b)² = 4ab
-    const a = int(rnd, 2, 15), b = int(rnd, 1, 9);
-    return { kind, ans: String(4 * a * b),
-      ask: `Найдите значение выражения (${V('a')} + ${V('b')})${PW(2)} ${MINUS} (${V('a')} ${MINUS} ${V('b')})${PW(2)} при ${V('a')} = ${a}, ${V('b')} = ${b}.` };
-  }
-  if (kind === 'smartInt') {      // a² − b² удобными числами
-    const a = int(rnd, 21, 69), b = int(rnd, 1, 20);
-    return { kind, ans: String(a * a - b * b),
-      ask: `Найдите значение выражения ${a}${PW(2)} ${MINUS} ${b}${PW(2)}.` };
-  }
-  if (kind === 'smartDec') {      // разность квадратов десятичных дробей
-    const x = Q(int(rnd, 3, 19), 10), y = Q(int(rnd, 1, 2), 10), r = qsub(qmul(x, x), qmul(y, y));
-    return { kind, ans: decStr(r),
-      ask: `Найдите значение выражения ${decStr(x)}${PW(2)} ${MINUS} ${decStr(y)}${PW(2)}.` };
-  }
   if (kind === 'coef') {          // какой одночлен стоит вместо □ — в ответ номер
-    const A = { k: int(rnd, 1, 3), m: int(rnd, 1, 4) }, B = { k: int(rnd, 1, 3), m: int(rnd, 1, 4) };
-    const want = crOf(A, B);
-    const list = shuffle(rnd, [want, sqOf(A), sqOf(B), { k: want.k * 2, m: want.m }]);
-    if (!list.some(z => z.k === want.k && z.m === want.m)) list[0] = want;
-    const no = list.findIndex(z => z.k === want.k && z.m === want.m) + 1;
-    return { kind, ans: String(no),
-      ask: `Какой из одночленов нужно записать вместо ${V('□')}, чтобы получилось тождество<br>` +
-        `(${mono(A)} + ${mono(B)})${PW(2)} = ${mono(sqOf(A))} + ${V('□')} + ${mono(sqOf(B))}?<br>` +
-        list.map((z, i) => `<span class="nw">${i + 1}) ${mono(z)}</span>`).join('; ') + `. В ответ запишите номер.` };
+    const g = genAB(rnd, 'sqsum', 3, 3), w = crOf(g.A, g.B);
+    const list = shuffle(rnd, [w, { k: w.k / 2, m: w.m }, { k: w.k * 2, m: w.m }, { k: w.k, m: w.m + 1 }]);
+    const no = list.findIndex(z => eqm(z, w)) + 1;
+    return { kind, t: [g.A.k, g.A.m, g.B.k, g.B.m, no], ans: String(no),
+      ask: `Какой из одночленов нужно записать вместо ${VI('□')}, чтобы получилось тождество<br>` +
+        `<span class="nw">(${mono(g.A)} + ${mono(g.B)})${PW(2)} = ${mono(sqOf(g.A))} + ${VI('□')} + ${mono(sqOf(g.B))}?</span><br>` +
+        list.map((z, i) => `<span class="nw">${i + 1}) ${mono(z)}</span>`).join('; ') + '. В ответ запишите номер.' };
   }
-  // куб разности при целых значениях
-  const a = int(rnd, 6, 14), b = int(rnd, 1, 5);
-  return { kind: 'cubeVal', ans: String((a - b) ** 3),
-    ask: `Найдите значение выражения (${V('a')} ${MINUS} ${V('b')})${PW(3)} при ${V('a')} = ${a}, ${V('b')} = ${b}.` };
+  if (kind === 'cube') {          // собрать куб разности по формуле и подставить
+    const a = int(rnd, 8, 15), b = int(rnd, 1, 7);
+    return { kind, t: [a, b], ans: String((a - b) ** 3),
+      ask: `Найдите значение выражения ${LA}${PW(3)} ${MINUS} 3${LA}${PW(2)}${LB} + 3${LA}${LB}${PW(2)} ${MINUS} ${LB}${PW(3)} при ${LA} = ${a}, ${LB} = ${b}.` };
+  }
+  // упрощение, после которого буква исчезает: (a − c)² − a(a − 2c) = c²
+  const c = int(rnd, 2, 12), a = int(rnd, 11, 99);
+  return { kind: 'cancel', t: [c, a], ans: String(c * c),
+    ask: `Найдите значение выражения (${LA} ${MINUS} ${c})${PW(2)} ${MINUS} ${LA}(${LA} ${MINUS} ${2 * c}) при ${LA} = ${a}.` };
 }
 
 // ================= На доске =================
@@ -418,53 +432,82 @@ function boardExample(random, old) {
   do { a = int(rnd, 12, 28); b = int(rnd, 2, 9); } while (++guard < 50 && old.a === a && old.b === b);
   return { a, b };
 }
-// Клетчатый квадрат со стороной (a + b) слева, подписи шагов справа
+// Подписи на чертеже — SVG-текст: курсив и степень через tspan и «²» (теги <i> и <sup> в SVG не работают)
+const si = v => `<tspan font-style="italic">${v}</tspan>`;
+const SAB = `${si('a')}${si('b')}`;
+// Размеры чертежа: клетчатый квадрат слева (не выше 250 по оси y), под ним скобка и подпись, подписи шагов справа
+const BOARD_SIDE = 250, BOARD_X = 90, BOARD_Y = 52, BOARD_TEXT_X = 540;
+const boardLines = (lines, y0 = 110) => lines.map((l, i) =>
+  `<g class="${l.cls || ''}">${tx(BOARD_TEXT_X, y0 + i * 58, l.t, 'lab s' + (l.lc ? ' ' + l.lc : ''), 'start')}</g>`).join('');
+// сетка клеток поверх цветных частей: заливка — отдельно, линии — через grid с прозрачной заливкой
+const cellLines = (x, y, n, unit) => grid(x, y, n, n, unit, 'gn', 5);
+// Квадрат со стороной (a + b), разрезанный на a², b² и два прямоугольника ab
 function squareScene(a, b, lines = [], opt = {}) {
-  const unit = Math.min(14, Math.floor(320 / (a + b))), size = (a + b) * unit, x = 70, y = Math.max(30, (BH - size) / 2);
+  const n = a + b, unit = Math.max(4, Math.floor(BOARD_SIDE / n)), size = n * unit, x = BOARD_X, y = BOARD_Y;
   const ca = a * unit, cb = b * unit;
-  let s = grid(x, y, a + b, a + b, unit, 'ge', 5);
+  let s = `<rect class="ge" x="${x}" y="${y}" width="${size}" height="${size}"/>`;
   if (opt.colorAA) s += `<rect class="gs" x="${x}" y="${y}" width="${ca}" height="${ca}"/>`;
   if (opt.colorAB) s += `<rect class="gw" x="${x + ca}" y="${y}" width="${cb}" height="${ca}"/><rect class="gw" x="${x}" y="${y + ca}" width="${ca}" height="${cb}"/>`;
   if (opt.colorBB) s += `<rect class="gs" x="${x + ca}" y="${y + ca}" width="${cb}" height="${cb}"/>`;
-  if (opt.showSplit) s += `<line class="gf" x1="${x + ca}" x2="${x + ca}" y1="${y}" y2="${y + size}" style="stroke-width:3"/><line class="gf" x1="${x}" x2="${x + size}" y1="${y + ca}" y2="${y + ca}" style="stroke-width:3"/>`;
-  s += under(x, y + size, size, opt.sideLabel || `сторона ${a + b}`, 'warm');
-  if (opt.markAB) s += tx(x + ca / 2, y - 16, String(a), 'lab acc') + tx(x + ca + cb / 2, y - 16, String(b), 'lab warm');
-  lines.forEach((l, i) => { s += `<g class="${l.cls || ''}">${tx(600, 70 + i * 66, l.t, 'lab' + (l.lc ? ' ' + l.lc : ''), 'start')}</g>`; });
-  return s;
+  s += cellLines(x, y, n, unit);
+  if (opt.showSplit) s += `<line class="gf" x1="${x + ca}" x2="${x + ca}" y1="${y}" y2="${y + size}"/><line class="gf" x1="${x}" x2="${x + size}" y1="${y + ca}" y2="${y + ca}"/>`;
+  s += under(x, y + size, size, opt.sideLabel, 'warm');
+  if (opt.markAB) s += tx(x + ca / 2, y - 14, String(a), 'lab acc') + tx(x + ca + cb / 2, y - 14, String(b), 'lab warm');
+  return s + boardLines(lines);
+}
+// Квадрат со стороной a, из которого вырезаны две полосы шириной b: остаётся квадрат (a − b)²
+function diffScene(a, b, lines = []) {
+  const unit = Math.max(4, Math.floor(BOARD_SIDE / a)), size = a * unit, x = BOARD_X, y = BOARD_Y;
+  const ci = (a - b) * unit, cb = b * unit;
+  let s = `<rect class="ge" x="${x}" y="${y}" width="${size}" height="${size}"/>`;
+  s += `<rect class="gs" x="${x}" y="${y}" width="${ci}" height="${ci}"/>`;
+  s += `<rect class="gw" x="${x + ci}" y="${y}" width="${cb}" height="${size}"/><rect class="gw" x="${x}" y="${y + ci}" width="${size}" height="${cb}"/>`;
+  s += cellLines(x, y, a, unit);
+  s += `<rect class="gx" x="${x + ci}" y="${y + ci}" width="${cb}" height="${cb}"/>`;
+  s += under(x, y + size, size, String(a), 'warm');
+  s += tx(x + ci / 2, y - 14, String(a - b), 'lab acc') + tx(x + ci + cb / 2, y - 14, String(b), 'lab warm');
+  return s + boardLines(lines);
 }
 function buildSteps(e) {
-  const { a, b } = e, S = a + b, sq = S * S, trap = a * a + b * b;
+  const { a, b } = e, S = a + b, sq = S * S, trap = a * a + b * b, mid = 2 * a * b, dif = (a - b) * (a - b);
+  const formula = `(${si('a')} + ${si('b')})² = ${si('a')}² + 2${SAB} + ${si('b')}²`;
   return [
-    { q: `Клетчатый квадрат со стороной ${S}. Как записать его площадь и чему она равна?`,
-      a: `S = (${S})${PW(2)} = ${sq} клетках. Но мы хотим увидеть, из чего складывается этот квадрат.`,
-      note: 'Начало урока: крупный квадрат (23 × 23 клетки) — пересчитывать долго. Спросите класс: как узнать площадь, не считая клетки по одной?',
-      draw: ph => squareScene(a, b, ph ? [{ t: `(${a} + ${b})${PW(2)} = ${sq}`, cls: 'new', lc: 'acc' }] : [], { sideLabel: `сторона ${S}` }),
+    { q: `Клетчатый квадрат со стороной ${S}. Как найти его площадь, не считая клетки по одной?`,
+      a: `S = ${S}${PW(2)} = ${sq} клеток. А из чего складывается эта площадь, если сторону разбить на ${a} и ${b}?`,
+      note: `Начало урока: крупный квадрат (${S} × ${S} клеток) — пересчитывать долго. Спросите класс: как узнать площадь, не считая клетки по одной?`,
+      draw: ph => squareScene(a, b, ph ? [{ t: `(${a} + ${b})² = ${sq}`, cls: 'new', lc: 'acc' }] : [], { sideLabel: `сторона ${S}` }),
       rec: ph => ph ? [`S = (${a} + ${b})${PW(2)} = ${sq}`] : [] },
     { q: `Разбили сторону ${S} на ${a} и ${b}. На какие фигуры распался квадрат?`,
       a: `Два квадрата: ${a} × ${a} и ${b} × ${b}, и два одинаковых прямоугольника ${a} × ${b}.`,
       note: 'Покажите линии разреза. Пусть класс сам назовёт размеры каждой из четырёх фигур.',
       draw: ph => squareScene(a, b, [], { showSplit: true, markAB: !!ph, sideLabel: `${a} + ${b}` }),
       rec: () => [] },
-    { q: `Сложим площади частей. Сколько получится?`,
+    { q: 'Сложим площади частей. Сколько получится?',
       a: `<ul><li>${a} · ${a} = ${a * a} — большой квадрат</li><li>${b} · ${b} = ${b * b} — маленький квадрат</li><li>${a} · ${b} = ${a * b} — каждый прямоугольник, их ДВА</li></ul>Вместе: ${a * a} + 2 · ${a * b} + ${b * b} = ${sq}.`,
       note: 'Подкрасьте части по очереди. Главный акцент: прямоугольников два, их площадь складываем дважды — отсюда «2ab» в формуле.',
-      draw: ph => squareScene(a, b, ph ? [{ t: `${a * a} + 2 · ${a * b} + ${b * b} = ${sq}`, cls: 'new', lc: 'acc' }] : [],
-        { showSplit: true, colorAA: true, colorAB: true, colorBB: true, sideLabel: `${a} + ${b}` }),
+      draw: ph => squareScene(a, b, ph ? [
+        { t: `${a} · ${a} = ${a * a}`, cls: 'new', lc: 'acc' },
+        { t: `2 · ${a} · ${b} = ${mid}`, cls: 'new', lc: 'warm' },
+        { t: `${b} · ${b} = ${b * b}`, cls: 'new', lc: 'acc' },
+        { t: `${a * a} + ${mid} + ${b * b} = ${sq}`, cls: 'new' }] : [],
+      { showSplit: true, colorAA: true, colorAB: true, colorBB: true, markAB: true, sideLabel: `${a} + ${b}` }),
       rec: ph => ph ? [`${a * a} + 2 · ${a * b} + ${b * b} = ${sq}`] : [] },
-    { q: `Значит, чему равен (${V('a')} + ${V('b')})${PW(2)}? Почему нельзя записать просто ${V('a')}${PW(2)} + ${V('b')}${PW(2)}?`,
-      a: `(${V('a')} + ${V('b')})${PW(2)} = ${V('ab')}${PW(2)}… точнее: ${V('a')}${PW(2)} + 2${V('ab')} + ${V('b')}${PW(2)}. Без прямоугольников получилось бы ${trap} вместо ${sq} — не хватает ровно 2ab = ${2 * a * b}.`,
+    { q: `Значит, чему равен (${LA} + ${LB})${PW(2)}? Почему нельзя записать просто ${LA}${PW(2)} + ${LB}${PW(2)}?`,
+      a: `(${LA} + ${LB})${PW(2)} = ${LA}${PW(2)} + 2${LA}${LB} + ${LB}${PW(2)}. Если взять только ${LA}${PW(2)} + ${LB}${PW(2)}, получится ${trap} вместо ${sq}: не хватает ровно 2${LA}${LB} = ${mid}.`,
       note: 'Вывод урока: квадрат суммы — ТРИ слагаемых, средний 2ab — это два прямоугольника. Ловушка (a + b)² = a² + b² рождается прямо на чертеже.',
-      draw: ph => squareScene(a, b, [{ t: `(${V('a')} + ${V('b')})${PW(2)} = ${V('a')}${PW(2)} + 2${V('ab')} + ${V('b')}${PW(2)}`, lc: 'acc' },
-        { t: `${a * a} + ${b * b} = ${trap} — не хватает ${2 * a * b}`, cls: ph ? 'new' : 'hide', lc: 'warm' }],
-        { showSplit: true, colorAA: true, colorAB: true, colorBB: true, sideLabel: `${a} + ${b}` }),
-      rec: ph => [`(${V('a')} + ${V('b')})${PW(2)} = ${V('a')}${PW(2)} + 2${V('ab')} + ${V('b')}${PW(2)}`,
-        ...(ph ? [`(${a} + ${b})${PW(2)} = ${a * a} + ${2 * a * b} + ${b * b} = ${sq}`] : [])] },
-    { q: `А если внутри скобки «${MINUS}»? Сравним площади: (${a} ${MINUS} ${b})${PW(2)} — это квадрат со стороной ${a - b}.`,
-      a: `(${V('a')} ${MINUS} ${V('b')})${PW(2)} = ${V('a')}${PW(2)} ${MINUS} 2${V('ab')} + ${V('b')}${PW(2)}. Проверка числами: (${a} ${MINUS} ${b})${PW(2)} = ${a * a} ${MINUS} ${2 * a * b} + ${b * b} = ${(a - b) ** 2}.`,
-      note: 'Из большого квадрата a² вырезали две полосы a·b — но уголок b² вырезали дважды, его возвращают. Поэтому последний член всегда «+». Спросите: почему (a − b)² = (b − a)²?',
-      draw: ph => squareScene(a, b, [{ t: `(${a} ${MINUS} ${b})${PW(2)} = ${a * a} ${MINUS} ${2 * a * b} + ${b * b} = ${(a - b) ** 2}`, cls: 'new', lc: 'acc' }],
-        { showSplit: true, colorAA: false, colorAB: false, colorBB: false, sideLabel: `${a} ${MINUS} ${b} = ${a - b}` }),
-      rec: ph => ph ? [`${V('a')}${PW(2)} ${MINUS} 2${V('ab')} + ${V('b')}${PW(2)} = (${V('a')} ${MINUS} ${V('b')})${PW(2)}`] : [] },
+      draw: ph => squareScene(a, b, [{ t: formula, lc: 'acc' }].concat(ph ? [
+        { t: `${a}² + ${b}² = ${trap}`, cls: 'new', lc: 'warm' },
+        { t: `${sq} − ${trap} = ${mid} — это 2${SAB}`, cls: 'new', lc: 'warm' }] : []),
+      { showSplit: true, colorAA: true, colorAB: true, colorBB: true, sideLabel: `${a} + ${b}` }),
+      rec: ph => [`(${LA} + ${LB})${PW(2)} = ${LA}${PW(2)} + 2${LA}${LB} + ${LB}${PW(2)}`,
+        ...(ph ? [`(${a} + ${b})${PW(2)} = ${a * a} + ${mid} + ${b * b} = ${sq}`] : [])] },
+    { q: `А если внутри скобки «${MINUS}»? Возьмём квадрат со стороной ${a} и «срежем» с двух сторон полосы шириной ${b}.`,
+      a: `(${LA} ${MINUS} ${LB})${PW(2)} = ${LA}${PW(2)} ${MINUS} 2${LA}${LB} + ${LB}${PW(2)}. Проверка числами: (${a} ${MINUS} ${b})${PW(2)} = ${a * a} ${MINUS} ${mid} + ${b * b} = ${dif}.`,
+      note: 'Из большого квадрата a² вырезали две полосы a·b, но угловой квадратик b² попал в обе полосы — его вычли дважды. Его возвращают: поэтому последний член всегда «+». Спросите: почему (a − b)² = (b − a)²?',
+      draw: ph => diffScene(a, b, [{ t: `(${a} ${MINUS} ${b})² = ${a - b}² = ${dif}`, cls: 'new', lc: 'acc' }].concat(ph ? [
+        { t: `${a}² ${MINUS} 2 · ${a * b} + ${b}²`, cls: 'new', lc: 'warm' },
+        { t: `${a * a} ${MINUS} ${mid} + ${b * b} = ${dif}`, cls: 'new', lc: 'warm' }] : [])),
+      rec: ph => ph ? [`${LA}${PW(2)} ${MINUS} 2${LA}${LB} + ${LB}${PW(2)} = (${LA} ${MINUS} ${LB})${PW(2)}`] : [] },
   ];
 }
 // превью на сайте крутит шаги до previewUntil (счёт с 0); картинка-превью — шаг poster с показанным ответом
@@ -473,45 +516,52 @@ const BOARD = { previewUntil: 2, poster: 3 };
 // Формулы в справке (help.html): ядро вызывает helpInit() при запуске
 function helpInit() {
   const put = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
-  put('helpSqSum', `(${V('a')} + ${V('b')})${PW(2)} = ${V('a')}${PW(2)} + 2${V('ab')} + ${V('b')}${PW(2)}`);
-  put('helpSqDif', `(${V('a')} ${MINUS} ${V('b')})${PW(2)} = ${V('a')}${PW(2)} ${MINUS} 2${V('ab')} + ${V('b')}${PW(2)}`);
-  put('helpDiff', `${V('a')}${PW(2)} ${MINUS} ${V('b')}${PW(2)} = (${V('a')} ${MINUS} ${V('b')}) · (${V('a')} + ${V('b')})`);
-  put('helpCubeSum', `(${V('a')} + ${V('b')})${PW(3)} = ${V('a')}${PW(3)} + 3${V('a')}${PW(2)}${V('b')} + 3${V('a')}${V('b')}${PW(2)} + ${V('b')}${PW(3)}`);
-  put('helpCubeDif', `(${V('a')} ${MINUS} ${V('b')})${PW(3)} = ${V('a')}${PW(3)} ${MINUS} 3${V('a')}${PW(2)}${V('b')} + 3${V('a')}${V('b')}${PW(2)} ${MINUS} ${V('b')}${PW(3)}`);
-  put('helpEx1', `(2${V('a')} + 3${V('b')})${PW(2)} = 4${V('a')}${PW(2)} + 12${V('ab')} + 9${V('b')}${PW(2)}`);
-  put('helpEx2', `47² − 23² = (47 − 23) · (47 + 23) = 24 · 70 = 1680`);
-  put('helpEx3', `(x + 5)${PW(2)} ${MINUS} x${PW(2)} = 10${X} + 25`);
+  put('helpSqSum', FSQ(1));
+  put('helpSqDif', FSQ(-1));
+  put('helpDiff', FDIF);
+  put('helpCubeSum', FCUBE(1));
+  put('helpCubeDif', FCUBE(-1));
+  put('helpEx1', `(2${X} + 3)${PW(2)} = 4${X}${PW(2)} + 12${X} + 9`);
+  put('helpEx2', `47${PW(2)} ${MINUS} 23${PW(2)} = (47 ${MINUS} 23)(47 + 23) = 24 · 70 = 1680`);
+  put('helpEx3', `(${X} + 5)${PW(2)} ${MINUS} ${X}${PW(2)} = 10${X} + 25`);
 }
 
 // ================= Свои виды ввода =================
-// poly: ответ — несколько одночленов (по числу слагаемых), mono: ответ — один одночлен.
-// Каждое слагаемое: поле коэффициента и поле суммарной степени при ab (пустое = 1).
+// poly: ответ — несколько одночленов со знаками, mono: ответ — один одночлен, pick: выбор одной из кнопок.
+// Каждое слагаемое: поле коэффициента и поле степени при x (пустое поле = 1); знак — в списке перед слагаемым.
+const monoRow = i => `<span class="mono"><input data-k="k${i}" class="mk" inputmode="numeric" autocomplete="off" aria-label="коэффициент ${i + 1}-го слагаемого">${X}<sup><input data-k="m${i}" class="mp" inputmode="numeric" autocomplete="off" aria-label="степень ${i + 1}-го слагаемого"></sup></span>`;
+const signSelect = i => `<select data-k="s${i}" class="sg" aria-label="знак перед ${i + 1}-м слагаемым"><option value="+">+</option><option value="${MINUS}">${MINUS}</option></select>`;
 const TOPIC_INPUTS = {
   poly: {
     html: t => {
       const n = TYPES[t.type].ans(t).length;
-      const row = i => `<span class="mono"><input data-k="k${i}" class="mk" inputmode="numeric" autocomplete="off" aria-label="коэффициент ${i + 1}-го слагаемого">${V('ab')}<sup><input data-k="m${i}" class="mp" inputmode="numeric" autocomplete="off" aria-label="степень ${i + 1}-го слагаемого"></sup></span>`;
-      return `<div class="inrow polyn">${TYPES[t.type].text(t)} = ${Array.from({ length: n }, (_, i) => row(i)).join('<span class="plus">+</span>')} ${checkBtn}</div>` +
-        '<p class="hnote">Каждое слагаемое: коэффициент и степень при <i>ab</i>. Например, 12<i>ab</i>³ — поля «12» и «3»; пустое поле — 1.</p>';
+      return `<div class="inrow polyn"><span class="nw">${TYPES[t.type].text(t)} =</span> ${Array.from({ length: n }, (_, i) => (i ? signSelect(i) : '') + monoRow(i)).join(' ')} ${checkBtn}</div>` +
+        `<p class="hnote">Каждое слагаемое: коэффициент и степень при <i>x</i>. Например, 12<i>x</i>³ — поля «12» и «3»; пустое поле — 1. Знак перед слагаемым выбери в списке.</p>`;
     },
-    collect: get => collectMonos(get, TYPES[H.task.type].ans(H.task).length),
+    collect: get => collectMonos(get, TYPES[H.task.type].ans(H.task).length, true),
   },
   mono: {
-    html: t => `<div class="inrow polyn">${TYPES[t.type].text(t)}<br>пропущенный одночлен: <span class="mono"><input data-k="k0" class="mk" inputmode="numeric" autocomplete="off" aria-label="коэффициент">${V('ab')}<sup><input data-k="m0" class="mp" inputmode="numeric" autocomplete="off" aria-label="степень"></sup></span> ${checkBtn}</div>` +
-      '<p class="hnote">Коэффициент и степень при <i>ab</i>; пустое поле — 1.</p>',
+    html: t => `<div class="inrow polyn"><span class="nw">${TYPES[t.type].text(t)}</span></div><div class="inrow polyn">пропущенный одночлен: ${monoRow(0)} ${checkBtn}</div>` +
+      '<p class="hnote">Коэффициент и степень при <i>x</i>; пустое поле — 1.</p>',
     collect: get => {
-      const r = collectMonos(get, 1);
+      const r = collectMonos(get, 1, false);
       return Array.isArray(r) ? r[0] : r;
     },
   },
+  pick: {
+    html: t => `<div class="inrow picks">${shuffle(mulberry32(t.o), TYPES[t.type].opts(t))
+      .map(o => `<button type="button" class="choice" data-choice="${o.key}"><span class="nw">${o.html}</span></button>`).join('')}</div>` +
+      '<p class="hnote">Выбери верный ответ.</p>',
+    collect: () => null,
+  },
 };
-function collectMonos(get, n) {
+function collectMonos(get, n, signs) {
   const out = [];
   for (let i = 0; i < n; i++) {
     const ks = get('k' + i).trim(), ms = get('m' + i).trim();
     if (!ks && !ms) return { empty: true, msg: `Заполни ${n > 1 ? `${i + 1}-е слагаемое` : 'одночлен'}: коэффициент и степень (пустое поле — 1).` };
-    if (!/^\d+$/.test(ks || '1') || !/^\d+$/.test(ms || '1')) return { empty: true, msg: 'В полях только натуральные числа (пустое поле — 1).' };
-    out.push({ k: +(ks || 1), m: +(ms || 1) });
+    if (!/^\d+$/.test(ks || '1') || !/^\d+$/.test(ms || '1')) return { empty: true, msg: 'В полях только натуральные числа (пустое поле — 1). Знак выбирается в списке.' };
+    out.push({ k: (signs && i && get('s' + i) === MINUS ? -1 : 1) * +(ks || 1), m: +(ms || 1) });
   }
   return out;
 }
