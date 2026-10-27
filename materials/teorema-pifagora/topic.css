@@ -1,14 +1,5 @@
-/* Светлая бумага, зелёные чернила и тёплые детали. Все рисунки остаются векторными. */
-#board .bstage { border-radius: 18px; background: #d8e1d9; box-shadow: inset 0 1px 12px #203b3114; }
-:root[data-theme="dark"] #board .bstage { background: #263a33; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #board .bstage { background: #263a33; } }
-svg .p-cover { fill: #9a7445; stroke: #87603a; stroke-width: 2; }
-svg .p-page { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
-svg .p-gutter { fill: none; stroke: var(--line); stroke-width: 5; opacity: .8; }
-svg .p-book-kicker { font-size: 28px; font-weight: 700; letter-spacing: 1px; fill: var(--soft); }
+/* Чертежи в общей палитре «Матшага»; фон и оформление доски задаёт ядро. */
 svg .p-angle-vertex { font-size: 28px; font-weight: 700; }
-svg .p-book-line { font-size: 34px; font-weight: 600; }
-svg .p-book-formula { font-size: 43px; font-weight: 800; fill: var(--accent); }
 svg .p-label, svg .p-number { font-size: 32px; font-weight: 700; }
 svg .p-caption { font-size: 28px; font-weight: 600; }
 svg .p-hyp-label { font-size: 34px; font-weight: 800; fill: var(--b); }
@@ -20,14 +11,12 @@ svg .p-frame { fill: var(--surface); stroke: var(--ink); stroke-width: 3; }
 svg .p-area { stroke: var(--ink); stroke-width: 2; }
 svg .p-area-a { fill: var(--a-soft); }
 svg .p-area-b { fill: var(--b-soft); }
-svg .p-area-c { fill: #b9ccd4; }
-:root[data-theme="dark"] svg .p-area-c { fill: #405d65; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) svg .p-area-c { fill: #405d65; } }
+svg .p-area-c { fill: var(--surface); }
 svg .p-hatch { fill: none; stroke: var(--ink); stroke-width: 1; opacity: .18; }
 svg .p-area-label { font-size: 35px; font-weight: 800; }
-svg .p-piece { fill: #efcc8b; stroke: #6d5733; stroke-width: 2.5; stroke-linejoin: round; }
-svg .p-piece-1, svg .p-piece-3 { fill: #e7c293; }
-svg .p-piece-number { fill: #493b28; font-size: 25px; font-weight: 700; }
+svg .p-piece { fill: var(--a-soft); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+svg .p-piece-1, svg .p-piece-3 { fill: var(--b-soft); }
+svg .p-piece-number { fill: var(--ink); font-size: 25px; font-weight: 700; }
 svg .p-tile-motion { animation: pyRearrange 1600ms cubic-bezier(.3,.1,.2,1) var(--tile-delay) both; transform-origin: 0 0; }
 @keyframes pyRearrange { from { transform: var(--tile-from); } to { transform: var(--tile-to); } }
 svg .p-svg-button { cursor: pointer; }

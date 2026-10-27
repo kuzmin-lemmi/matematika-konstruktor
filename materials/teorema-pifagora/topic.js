@@ -1,4 +1,4 @@
-// Теорема Пифагора: бумажные детали движутся как жёсткие фигуры.
+// Теорема Пифагора: доказательство перестановкой равных треугольников.
 const CONFIG = { board: { a: 3, b: 4, previewDelay: 2400, min: 2, max: 12 }, print: { variants: 25, traps: 1, space: false }, home: { round: 10, points: [10, 15, 15, 20], hintPenalty: 3, maxMultiplier: 3 } };
 const GEN_VERSION = 1;
 const bad = (cat, msg) => ({ cat, msg });
@@ -141,17 +141,14 @@ function boardExample(random, old) {
   let p; do p = pick(rnd, [[3, 4], [6, 8], [5, 12], [9, 12], [4, 3], [8, 6]]); while (p[0] === old.a && p[1] === old.b);
   return { a: p[0], b: p[1], angle: 90 };
 }
-function bookPaper() {
-  return `<g class="paper-book" filter="url(#pyShadow)"><path class="p-cover" d="M29 32Q260 3 490 30Q730 3 950 32L964 365Q720 345 490 374Q250 345 16 365Z"/><path class="p-page" d="M33 23Q265 4 490 24V365Q260 343 25 355Z"/><path class="p-page" d="M490 24Q715 4 947 23L955 355Q720 343 490 365Z"/><path class="p-gutter" d="M484 25V363M496 25V363"/></g>`;
-}
-function workshop(lines, render) {
-  const defs = `<defs><filter id="pyShadow" x="-15%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="6" stdDeviation="5" flood-opacity=".18"/></filter><pattern id="pyHatchA" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 12L12 0" class="p-hatch"/></pattern><pattern id="pyHatchB" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 6H12" class="p-hatch"/></pattern></defs>`;
+function boardLayout(lines, render) {
+  const defs = `<defs><pattern id="pyHatchA" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 12L12 0" class="p-hatch"/></pattern><pattern id="pyHatchB" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 6H12" class="p-hatch"/></pattern></defs>`;
   const frame = PY_LARGE ? { x: 155, y: 25, w: 670, h: 320 } : { x: 540, y: 40, w: 370, h: 300 };
-  return defs + (PY_LARGE ? '' : bookPaper() + pyText(65, 67, 'БУМАЖНАЯ МАСТЕРСКАЯ', 'p-book-kicker', 'start') + lines.map((s, i) => pyText(65, 133 + i * 58, s, i === lines.length - 1 ? 'p-book-formula' : 'p-book-line', 'start')).join('')) + render(frame);
+  return defs + (PY_LARGE ? '' : lines.map((s, i) => pyText(65, 118 + i * 64, s, i === lines.length - 1 ? 'lab acc' : 'lab', 'start')).join('')) + render(frame);
 }
 function renderDissection(e, split, animate = false) {
   const m = paperModel(e.a, e.b), n = e.a * e.a + e.b * e.b;
-  return workshop(split ? ['Те же 4 детали.', 'Та же рамка.', `a² + b² = ${n}`] : ['Четыре треугольника.', 'В центре — квадрат.', `c² = ${n}`], f => {
+  return boardLayout(split ? ['Те же 4 детали.', 'Та же рамка.', `a² + b² = ${n}`] : ['Четыре треугольника.', 'В центре — квадрат.', `c² = ${n}`], f => {
     const size = Math.min(f.w - 50, f.h - 25), k = size / m.L, x = f.x + (f.w - size) / 2, y = f.y + 7;
     const map = p => pyPoint(x + p.x * k, y + p.y * k), center = ps => pyPoint(ps.reduce((s, p) => s + p.x, 0) / ps.length, ps.reduce((s, p) => s + p.y, 0) / ps.length);
     let s = `<rect class="p-frame" x="${x}" y="${y}" width="${size}" height="${size}"/>`;
@@ -174,7 +171,7 @@ function squareModel(a, b, angle = 90) {
 }
 function renderSquares(e, angle = 90, answer = true) {
   const m = squareModel(e.a, e.b, angle), all = m.squares.flat();
-  return workshop([angle === 90 ? 'Угол C — прямой.' : `Угол C = ${angle}°.`, `a² + b² = ${e.a * e.a + e.b * e.b}`, answer ? `c² = ${m.c2}` : 'Чему равно c²?'], f => {
+  return boardLayout([angle === 90 ? 'Угол C — прямой.' : `Угол C = ${angle}°.`, `a² + b² = ${e.a * e.a + e.b * e.b}`, answer ? `c² = ${m.c2}` : 'Чему равно c²?'], f => {
     const minX = Math.min(...all.map(p => p.x)), maxX = Math.max(...all.map(p => p.x)), minY = Math.min(...all.map(p => p.y)), maxY = Math.max(...all.map(p => p.y));
     const k = Math.min((f.w - 45) / (maxX - minX), (f.h - 25) / (maxY - minY));
     const map = p => pyPoint(f.x + f.w / 2 + (p.x - (minX + maxX) / 2) * k, f.y + f.h / 2 + (p.y - (minY + maxY) / 2) * k);
@@ -193,12 +190,12 @@ function renderSquares(e, angle = 90, answer = true) {
 }
 function renderHero(e, answer = false) {
   const n = e.a * e.a + e.b * e.b, c = isqrt(n) == null ? sr(n) : String(isqrt(n));
-  return workshop(['Сначала найди', 'прямой угол.', `a = ${e.a}, b = ${e.b}`], f => {
+  return boardLayout(['Сначала найди', 'прямой угол.', `a = ${e.a}, b = ${e.b}`], f => {
     const k = Math.min((f.w - 140) / e.a, (f.h - 70) / e.b), x = f.x + 80, y = f.y + f.h - 35;
     return `<polygon class="p-triangle" points="${pyPoly([pyPoint(x, y), pyPoint(x + e.a * k, y), pyPoint(x, y - e.b * k)])}"/><path class="p-right" d="M${x} ${y - 18}h18v18"/>` + pyText(x - 23, y + 20, 'C') + pyText(x + e.a * k + 20, y + 20, 'A') + pyText(x - 20, y - e.b * k - 12, 'B') + pyText(x + e.a * k / 2, y + 32, `a = ${e.a}`, 'p-caption') + pyText(x - 25, y - e.b * k / 2, `b = ${e.b}`, 'p-caption', 'end') + pyText(x + e.a * k / 2 + 25, y - e.b * k / 2 - 10, answer ? `c = ${c}` : 'c = ?', 'p-hyp-label');
   });
 }
-function svgAction(x, y, text, action, value = '') { return `<g class="p-svg-button" role="button" tabindex="0" aria-label="${text}" data-py-act="${action}" data-value="${value}" transform="translate(${x} ${y})"><rect rx="10" width="${action === 'angle' ? 105 : 200}" height="42"/>${pyText(action === 'angle' ? 52 : 100, 29, text, 'p-button-label')}</g>`; }
+function svgAction(x, y, text, action, value = '') { return `<g class="p-svg-button" role="button" tabindex="0" aria-label="${text}" data-py-act="${action}" data-value="${value}" transform="translate(${x} ${y})"><rect rx="10" width="${action === 'angle' ? 105 : 240}" height="42"/>${pyText(action === 'angle' ? 52 : 120, 29, text, 'p-button-label')}</g>`; }
 function taskOnPage(e, f, c, mode = 'hyp') {
   const k = Math.min((f.w - 30) / 320, (f.h - 20) / 220), x = f.x + (f.w - 320 * k) / 2, y = f.y + (f.h - 220 * k) / 2;
   return `<g transform="translate(${x} ${y}) scale(${k})">${taskTriangle({ a: e.a, b: e.b, c }, mode).replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')}</g>`;
@@ -216,17 +213,17 @@ function buildSteps(e) {
     step('theorem', 'Сформулируй теорему Пифагора.', 'Квадрат гипотенузы равен сумме квадратов катетов.', 'Обязательно назовите условие: треугольник прямоугольный. c обозначает гипотенузу.', () => renderSquares(e), ['Прямоугольный треугольник: c² = a² + b²']),
     step('find-hyp', `Найди гипотенузу при катетах ${e.a} и ${e.b}.`, `c² = ${e.a * e.a} + ${e.b * e.b} = ${n}; c = ${c}.`, 'Длина положительна. Если корень не целый, оставляем точный ответ со знаком корня.', ph => renderHero(e, !!ph), [`c² = ${n}; c = ${c}`]),
     step('angle-experiment', 'А если угол C перестанет быть прямым?', theta === 90 ? `При 90°: c² = ${n} = a² + b².` : `При ${theta}°: c² = ${actual}, а a² + b² = ${n}. Равенства нет.`, 'Выберите 60°, 90° или 120°. Длины a и b сохраняются. Сейчас исследуем отдельный чертёж; перестановка относится к прямоугольному случаю.', () => renderSquares(e, theta) + [60, 90, 120].map((a, i) => svgAction((PY_LARGE ? 320 : 70) + i * 120, PY_LARGE ? 355 : 310, `${a}°`, 'angle', a)).join(''), ['Условие: угол между катетами равен 90°']),
-    step('find-leg', 'Как найти катет, если гипотенуза известна?', `b² = c² − a² = ${n} − ${e.a * e.a} = ${e.b * e.b}; b = ${e.b}.`, 'Из квадрата гипотенузы вычитаем квадрат известного катета.', () => workshop(['Ищем катет b.', `c² = ${n}, a = ${e.a}`, 'b² = c² − a²'], f => taskOnPage(e, f, cSvg, 'leg')), [`b² = ${n} − ${e.a * e.a}; b = ${e.b}`]),
+    step('find-leg', 'Как найти катет, если гипотенуза известна?', `b² = c² − a² = ${n} − ${e.a * e.a} = ${e.b * e.b}; b = ${e.b}.`, 'Из квадрата гипотенузы вычитаем квадрат известного катета.', () => boardLayout(['Ищем катет b.', `c² = ${n}, a = ${e.a}`, 'b² = c² − a²'], f => taskOnPage(e, f, cSvg, 'leg')), [`b² = ${n} − ${e.a * e.a}; b = ${e.b}`]),
     step('trap', 'Ученик написал c = a + b. В чём ошибка?', `Он сложил длины. Верно: c² = ${e.a}² + ${e.b}² = ${n}; c = ${c}.`, 'Проверьте также, что никто не остановился на c² и не забыл извлечь корень.', () => renderSquares(e), ['c ≠ a + b; сначала квадраты, затем корень']),
-    step('summary', 'Что нужно проверить перед решением?', 'Прямой угол → гипотенуза → формула → положительный корень.', 'Попросите назвать формулу для гипотенузы и отдельно для катета.', () => workshop(['c² = a² + b²', 'a² = c² − b²', 'b² = c² − a²'], f => taskOnPage(e, f, cSvg)), ['Гипотенуза: сумма квадратов; катет: разность']),
+    step('summary', 'Что нужно проверить перед решением?', 'Прямой угол → гипотенуза → формула → положительный корень.', 'Попросите назвать формулу для гипотенузы и отдельно для катета.', () => boardLayout(['c² = a² + b²', 'a² = c² − b²', 'b² = c² − a²'], f => taskOnPage(e, f, cSvg)), ['Гипотенуза: сумма квадратов; катет: разность']),
   ];
 }
 const BOARD = { previewUntil: 7, poster: 5 };
 function helpInit() {
   $('pyHelpRoot').innerHTML = RT(13);
-  const button = document.createElement('button'); button.type = 'button'; button.id = 'pyControlsBtn'; button.textContent = '🎛'; button.setAttribute('aria-label', 'Параметры бумажной модели'); button.setAttribute('aria-expanded', 'false'); $('board').querySelector('.bbar').append(button);
+  const button = document.createElement('button'); button.type = 'button'; button.id = 'pyControlsBtn'; button.textContent = '🎛'; button.setAttribute('aria-label', 'Параметры чертежа'); button.setAttribute('aria-expanded', 'false'); $('board').querySelector('.bbar').append(button);
   const panel = document.createElement('div'); panel.id = 'pyControls'; panel.hidden = true; panel.className = 'no-print'; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Параметры модели');
-  panel.innerHTML = '<button type="button" id="pyClose" aria-label="Закрыть параметры">×</button><h3>Бумажная модель</h3><label>Катет a <input id="pyA" type="number" min="2" max="12" step="1"></label><label>Катет b <input id="pyB" type="number" min="2" max="12" step="1"></label><label><input id="pyLarge" type="checkbox"> Крупный чертёж</label><p>Катеты меняются целыми числами. Угол исследуем на шаге 9.</p>'; document.body.append(panel);
+  panel.innerHTML = '<button type="button" id="pyClose" aria-label="Закрыть параметры">×</button><h3>Параметры чертежа</h3><label>Катет a <input id="pyA" type="number" min="2" max="12" step="1"></label><label>Катет b <input id="pyB" type="number" min="2" max="12" step="1"></label><label><input id="pyLarge" type="checkbox"> Крупный чертёж</label><p>Катеты меняются целыми числами. Угол исследуем на шаге 9.</p>'; document.body.append(panel);
   const sync = () => { if (B.e) { $('pyA').value = B.e.a; $('pyB').value = B.e.b; } };
   const toggle = () => { panel.hidden = !panel.hidden; button.setAttribute('aria-expanded', String(!panel.hidden)); sync(); };
   button.addEventListener('click', toggle); $('pyClose').addEventListener('click', toggle);
