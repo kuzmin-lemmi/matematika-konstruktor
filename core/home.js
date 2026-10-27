@@ -5,7 +5,7 @@ function homeSetup() {
   $('hSetup').hidden = false; $('hPlay').hidden = true; $('hEnd').hidden = true;
   $('hLevels').innerHTML = SECTIONS.map((S, i) => {
     const best = +store.get('best' + i) || 0;
-    return `<button type="button" class="level" data-level="${i}"><b>${S.title} →</b><span>${S.text}</span><span class="lex">${S.ex()}</span><small>Рекорд: ${best}</small></button>`;
+    return `<button type="button" class="level" data-level="${i}"><b>${S.title} →</b><span class="lname">${S.text}</span><span class="lex${S.exText ? ' txt' : ''}">${S.ex()}</span><small>Рекорд: ${best}</small></button>`;
   }).join('');
   $('home').classList.remove('playing');
   // учителю: ссылка сразу на раздел, чтобы отправить её в чат класса
