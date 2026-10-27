@@ -1,0 +1,58 @@
+/* Тема «Три признака равенства треугольников»: чертежи заданий и доски */
+
+/* --- малые чертежи в заданиях (тренажёр и лист) --- */
+.tdraw { width: 100%; max-width: 130mm; display: block; margin: 6px auto 0; }
+.half .tdraw, .compact .tdraw { max-width: 108mm; }
+
+svg .side { fill: none; stroke: var(--ink); stroke-width: 3; }
+svg .tick { stroke: var(--b); stroke-width: 2.6; }
+svg .arc  { fill: none; stroke: var(--b); stroke-width: 2.4; }
+svg .vl   { font-size: 24px; font-weight: 700; }
+svg .num  { font-size: 21px; font-weight: 600; }
+svg .ann  { font-size: 19px; font-weight: 600; fill: var(--soft); }
+svg .cap  { font-size: 20px; fill: var(--soft); }
+svg .ndot { fill: var(--ink); }
+svg tspan.sub { font-size: 65%; }
+.tq { margin: 6px 0 0; }
+
+/* --- доска: отметки на чертежах --- */
+svg .btick { stroke: var(--ink); stroke-width: 3.5; }
+svg .bmark { fill: none; stroke: var(--ink); stroke-width: 3; }
+svg .bmark.warm { stroke: var(--b); }
+svg .fill2 { fill: var(--a-soft); }
+svg .link { fill: none; }
+
+/* Текст задачи не должен вытеснять чертёж и кнопки на телефоне. */
+#home .tq { font-size: clamp(19px, 3vw, 25px); font-weight: 600; }
+#home .tdraw { max-height: 260px; }
+#home .choice { max-width: 100%; white-space: normal; overflow-wrap: anywhere; font-size: 22px; }
+#home .inrow > span { max-width: 100%; }
+svg .superpose { animation: superpose 1.1s ease-out both; }
+@keyframes superpose { from { transform: translateX(340px); } to { transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { svg .superpose { animation: none; } }
+
+/* Сохраняем один A4 и компактный лист с двумя вариантами. */
+.sheet .tasks { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2mm 3mm; }
+.sheet .tdraw { height: 30mm; max-height: 30mm; margin: 1mm auto 0; }
+.sheet .tq { font-size: 12pt; line-height: 1.2; margin: 1mm 0 0; }
+.sheet .cells { height: 17mm; }
+.page:not(.compact) .tdraw { height: 24mm; }
+.page:not(.compact) .cells { height: 10mm; }
+.half .sheet .tasks { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1mm 3mm; }
+.half .task:first-child { grid-column: span 2; }
+.half .tdraw { height: 25mm; }
+.half .tq { font-size: 9pt; line-height: 1.15; }
+.half .bank { font-size: 9pt; }
+.half .shead { grid-template-columns: 1fr 16mm 18mm auto; gap: 2mm; }
+.half .sheet { gap: 1mm; }
+.sheet svg { --ink: #000; --b: #000; --soft: #000; }
+.sheet svg .vl { font-size: 32px; }
+.sheet svg .num { font-size: 28px; }
+.sheet svg .ann { font-size: 23px; }
+.sheet svg[viewBox="0 0 660 260"] .vl { font-size: 38px; }
+
+@media print {
+  .tdraw { max-width: 112mm; }
+  svg .tick, svg .arc { stroke: #000; }
+  svg .ann, svg .cap { fill: #000; }
+}
