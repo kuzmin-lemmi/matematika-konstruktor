@@ -978,7 +978,7 @@ function ticketBoardDraw(v) {
     tx(40, 325, ticketReasonForm(v) === 'common' ? '3. BD = BD. Почему? Сторона принадлежит обоим треугольникам.' : '3. AC и BD пересекаются в O. Почему ∠AOB = ∠COD?', 'lab s', 'start');
 }
 function extraKeyHTML(vs, kind) {
-  return `<div class="page key lesson-key"><h2>Ключ учителя · ${LESSON_KINDS[kind]}</h2>${vs.map(v => `<section class="lesson-key-row"><h3>Вариант ${v.label}</h3>${kind === 'proofs'
+  return `<div id="lessonKey" class="page key lesson-key"><h2>Ключ учителя · ${LESSON_KINDS[kind]}</h2>${vs.map(v => `<section class="lesson-key-row"><h3>Вариант ${v.label}</h3>${kind === 'proofs'
     ? v.proofs.map((p, i) => `<p><b>${i + 1}.</b> ${p.solution}</p>`).join('') + `<p><b>4.</b> ${correspondenceReason(v.correspondence)} Сторона BC равна ${v.correspondence.names[1]}${v.correspondence.names[2]}.</p>`
     : `<p><b>1.</b> ${TYPES.which.ok(v.sign)}</p><p><b>2.</b> Ошибка: ${v.error.kind === 'aaa' ? 'равные углы не задают размер треугольника, поэтому признака по трём углам нет.' : 'для первого признака угол должен лежать между данными сторонами; без этого условия признака нет.'} Вывод: данных недостаточно. Это не доказательство неравенства.</p><p><b>3.</b> ${ticketReasonForm(v) === 'common' ? 'BD = BD — общая сторона.' : '∠AOB = ∠COD — вертикальные углы.'}</p><p>По 1 баллу за каждый обоснованный ответ. Ошибка в № 1 — повторить признаки; в № 2 — достаточность данных; в № 3 — причины равенств.</p>`}</section>`).join('')}</div>`;
 }
@@ -989,7 +989,14 @@ function helpInit() {
   drawSheets = function () {
     const base = baseDraw();
     const kind = $('pKind').value;
-    if (!['proofs', 'ticket'].includes(kind)) return base;
+    const extra = ['proofs', 'ticket'].includes(kind);
+    $('pExtraKey').hidden = !extra;
+    if (!extra) {
+      $('print').dataset.extraKey = 'false';
+      $('pExtraKey').textContent = 'Показать ключ';
+      $('pExtraKey').setAttribute('aria-expanded', 'false');
+      return base;
+    }
     const vs = printNums.map(n => makeLessonSheet(n, kind));
     const grid = $('pSpace').checked;
     const two = kind === 'ticket' && $('pTwo').checked && !grid;
@@ -1010,6 +1017,13 @@ function helpInit() {
   const box = document.createElement('div'); box.className = 'mode split';
   box.innerHTML = `<b>🖨 Раздатка</b><span>${META.modePrint}</span><div class="kinds">${choices.map(([k, text]) => `<button type="button" data-go="print" data-kind="${k}">${text}</button>`).join('')}</div>`;
   startPrint.replaceWith(box);
+  $('pPrintKey').insertAdjacentHTML('afterend', '<button type="button" id="pExtraKey" aria-controls="lessonKey" aria-expanded="false" hidden>Показать ключ</button>');
+  $('pExtraKey').addEventListener('click', () => {
+    const visible = $('print').dataset.extraKey !== 'true';
+    $('print').dataset.extraKey = String(visible);
+    $('pExtraKey').textContent = visible ? 'Скрыть ключ' : 'Показать ключ';
+    $('pExtraKey').setAttribute('aria-expanded', String(visible));
+  });
   if (['proofs', 'ticket'].includes(P.get('kind'))) pendingKind = P.get('kind');
   // Эти обработчики ядро зарегистрировало до тематической настройки; дополняем их перерисовкой.
   $('pSpace').addEventListener('change', () => drawSheets());
