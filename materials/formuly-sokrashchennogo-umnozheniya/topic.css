@@ -1,0 +1,13 @@
+/* Тема «Формулы сокращённого умножения» */
+/* пропуск в формуле */
+.fmuq{display:inline-block;min-width:1.3em;text-align:center;border-bottom:2px dashed currentColor;font-weight:700}
+/* поля ввода одночлена: коэффициент, x и степень */
+.mono{display:inline-flex;align-items:center;white-space:nowrap}
+.inrow .mono input.mk{width:2.6em}
+.inrow .mono sup{display:inline-block;margin-left:.1em;vertical-align:baseline;position:relative;top:-.5em}
+.inrow .mono input.mp{width:2.1em;font-size:.75em}
+.inrow select.sg{font:inherit;font-weight:700;padding:.1em .3em;border:2px solid var(--line);border-radius:10px;background:var(--bg);color:inherit}
+.inrow.picks{flex-direction:column;align-items:stretch}
+.inrow.picks .choice{font-size:24px}
+/* чертёж доски: сетка поверх цветных частей — без заливки */
+svg .gn{fill:none}
