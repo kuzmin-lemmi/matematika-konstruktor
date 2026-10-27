@@ -124,6 +124,8 @@ const pairH = (x, y) => `${hname(x)} = ${hname(y)}`;
 const sidePair = sd => pairH(...SIDE_N[sd]);
 const angPair = vx => pairH(...ANG_N[vx]);
 const SIGN_WORD = { 1: 'первый', 2: 'второй', 3: 'третий' };
+const SIGN_DAT = { 1: 'первому', 2: 'второму', 3: 'третьему' };
+const SIGN_GEN = { 1: 'первого', 2: 'второго', 3: 'третьего' };
 const SIGN_SHORT = {
   1: 'две стороны и угол между ними',
   2: 'сторона и два прилежащих к ней угла',
@@ -253,7 +255,7 @@ const TYPES = {
     text: t => `По какому признаку равны △ABC и ${hname('△A1B1C1')}?`,
     ask: t => pairSVG(scen(t.kind, t.v)) + `<p class="tq">По какому признаку равны △ABC и ${hname('△A1B1C1')}?</p>`,
     sheet: t => pairSVG(scen(t.kind, t.v)) + '<p class="tq">Назови признак: первый, второй или третий.</p>',
-    answer: t => `По ${SIGN_WORD[SIGN_OF[t.kind]]} признаку`,
+    answer: t => `По ${SIGN_DAT[SIGN_OF[t.kind]]} признаку`,
     ans: t => String(SIGN_OF[t.kind]),
     ok: t => scen(t.kind, t.v).why,
     wrong(t, x) {
@@ -315,7 +317,7 @@ const TYPES = {
       const opts = shuffle(rnd, [right, ...Object.keys(sc.wrongs)]).map(k => [k, hname(k)]);
       return { p: sc.p, sides: sc.sides, angs: sc.angs, right, opts, wrongs: sc.wrongs };
     },
-    text: t => `Какое условие добавить для ${SIGN_WORD[t.p]} признака?`,
+    text: t => `Какое условие добавить для ${SIGN_GEN[t.p]} признака?`,
     ask: t => enoughSVG(t) +
       `<p class="tq">Дано: ${enoughGiven(t)}. Какое условие добавить, чтобы непосредственно применить ${SIGN_WORD[t.p]} признак по его формулировке?</p>`,
     answer: t => `Добавить: ${hname(t.right)}`,
