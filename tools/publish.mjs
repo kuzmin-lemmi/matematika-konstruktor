@@ -186,8 +186,10 @@ if (existsSync(join(ROOT, '.git'))) {
   // коммитим только то, что относится к опубликованной теме: её файлы и снимок вариантов
   sh(`git add -- "materials/${slug}" "tests/snapshots/${slug}.frozen.json"`, ROOT, { quiet: true });
   if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) {
-    writeFileSync(join(ROOT, '.git', 'MATSHAG_MSG'), `Опубликуй тему «${title}»\n`);
-    sh('git commit -q -F .git/MATSHAG_MSG', ROOT, { quiet: true });
+    // В отдельной рабочей копии .git — файл; настоящий каталог сообщает сам Git.
+    const msgFile = sh('git rev-parse --path-format=absolute --git-path MATSHAG_MSG', ROOT, { quiet: true }).trim();
+    writeFileSync(msgFile, `Опубликуй тему «${title}»\n`);
+    sh(`git commit -q -F "${msgFile}"`, ROOT, { quiet: true });
     log('✓ конструктор закоммичен');
   }
 }
