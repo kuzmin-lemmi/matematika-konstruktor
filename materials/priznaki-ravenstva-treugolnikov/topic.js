@@ -427,6 +427,71 @@ const TYPES = {
     hints: t => ['Сначала выпиши данные равенства. Ищи общую сторону или вертикальные углы, затем назови признак.', PROOFS[t.form].solution],
     traps: t => t.opts.filter(([v]) => v !== t.right).map(([key, html]) => ({ key, html })),
   },
+  correspond: {
+    input: 'enoughIn', title: 'Порядок соответственных вершин',
+    gen: rnd => {
+      const names = shuffle(rnd, ['M', 'K', 'N']);
+      const right = names.join('');
+      const orders = permutations(names).filter(s => s !== right);
+      const opts = shuffle(rnd, [right, ...shuffle(rnd, orders).slice(0, 2)])
+        .map(s => [s, `△ABC = △${s}`]);
+      return { names, opts };
+    },
+    text: () => 'Запиши равенство треугольников в верном порядке.',
+    ask: t => correspondSVG(t) + '<p class="tq">Треугольники равны. Выбери запись с правильным порядком соответственных вершин.</p>',
+    ans: t => t.names.join(''),
+    same: (t, x) => x === t.names.join(''),
+    wrongInput: t => t.opts.find(([v]) => v !== t.names.join(''))[0],
+    key: t => t.names.join(''),
+    keyHTML: t => `△ABC = △${t.names.join('')}`,
+    answer: t => `△ABC = △${t.names.join('')}`,
+    ok: t => correspondenceReason(t),
+    wrong: t => bad('pair', `Ты сопоставил вершины по положению на рисунке. Смотри на штрихи сторон. ${correspondenceReason(t)}`),
+    hints: t => ['Вершина A соединяет стороны с одним и тремя штрихами. Найди такую же вершину справа.', correspondenceReason(t)],
+    traps: t => t.opts.filter(([v]) => v !== t.names.join('')).map(([key, html]) => ({ key, html })),
+  },
+  certainty: {
+    input: 'choice', title: 'Какой вывод доказан?',
+    options: [['yes', 'Треугольники равны'], ['no', 'Треугольники не равны'], ['unknown', 'Данных недостаточно']],
+    gen: rnd => ({ kind: pick(rnd, ['s1', 'ssa', 'aaa', 'different']), v: pick(rnd, ['B', 'C']) }),
+    text: () => 'Какой вывод следует из данных?',
+    ask: t => pairSVG(scen(t.kind === 'different' ? 'aaa' : t.kind, t.kind === 's1' ? 'A' : t.v), t.kind === 'different' ? 0.75 : t.kind === 'aaa' ? 0.7 : 1) +
+      `<p class="tq">${t.kind === 'different' ? `P(△ABC) = 24 см, P(${hname('△A1B1C1')}) = 18 см. ` : ''}Какой вывод следует из данных?</p>`,
+    ans: t => t.kind === 's1' ? 'yes' : t.kind === 'different' ? 'no' : 'unknown',
+    key: t => t.kind === 's1' ? 'yes' : t.kind === 'different' ? 'no' : 'unknown',
+    keyHTML: t => t.kind === 's1' ? 'равны' : t.kind === 'different' ? 'не равны' : 'данных недостаточно',
+    answer: t => TYPES.certainty.keyHTML(t),
+    ok: t => certaintyReason(t),
+    wrong: (t, x) => bad('certainty', `${x === 'no' && !['s1', 'different'].includes(t.kind) ? '«Не доказано» не означает «не равны». ' : ''}${certaintyReason(t)}`),
+    hints: t => ['Чтобы сказать «равны», нужен признак; чтобы сказать «не равны», нужно противоречие равенству. Иначе данных недостаточно.', certaintyReason(t)],
+    traps: t => TYPES.certainty.options.filter(([v]) => v !== TYPES.certainty.ans(t)).map(([key, html]) => ({ key, html })),
+  },
+  reasoning: {
+    input: 'proofBuild', title: 'Собрать доказательство',
+    gen: rnd => {
+      const form = pick(rnd, ['common', 'cross', 'second', 'third']);
+      return { form, facts: shuffle(rnd, BUILD_PROOF[form].facts) };
+    },
+    text: () => 'Заверши доказательство: равенство, причина, признак и вывод.',
+    ask: t => proofSVG(t.form) + `<p class="tq">${PROOFS[t.form].given}</p><p class="tq">${BUILD_PROOF[t.form].start} Допиши третью строку и вывод.</p>`,
+    ans: t => buildProofAnswer(t),
+    same: (t, x) => !!x && Object.entries(buildProofAnswer(t)).every(([k, v]) => x[k] === v),
+    wrongInput: t => ({ ...buildProofAnswer(t), reason: 'picture' }),
+    key: t => JSON.stringify(buildProofAnswer(t)),
+    keyHTML: t => PROOFS[t.form].solution,
+    answer: t => PROOFS[t.form].solution,
+    ok: t => PROOFS[t.form].solution,
+    wrong(t, x) {
+      const right = buildProofAnswer(t);
+      const prefix = x.fact !== right.fact ? 'Это равенство не обосновано данными задачи.'
+        : x.reason !== right.reason ? 'У равенства должна быть причина: условие или свойство. Внешний вид рисунка не является доказательством.'
+        : x.sign !== right.sign ? 'Выбранный признак не соответствует трём записанным равенствам.'
+        : 'В выводе нарушен порядок соответственных вершин.';
+      return bad(x.sign !== right.sign ? 'which' : x.conclusion !== right.conclusion ? 'pair' : 'proof', `${prefix} ${PROOFS[t.form].solution}`);
+    },
+    hints: t => ['В каждой строке нужны равенство и причина. Затем проверь расположение угла и порядок вершин в выводе.', PROOFS[t.form].solution],
+    traps: () => [],
+  },
 };
 
 // Доказательства: каждое содержит три равенства и вывод с порядком соответственных вершин.
@@ -457,11 +522,59 @@ const PROOFS = {
   },
 };
 
+const BUILD_PROOF = {
+  common: { start: '1) AB = CB — по условию; 2) ∠ABD = ∠CBD — по условию.', facts: ['BD = BD', 'AD = BD', 'AB = AD'], fact: 'BD = BD', reason: 'common', sign: '1' },
+  cross: { start: '1) AO = CO — по условию; 2) BO = DO — по условию.', facts: ['∠AOB = ∠COD', '∠AOB = ∠BOC', 'AO = BO'], fact: '∠AOB = ∠COD', reason: 'vertical', sign: '1' },
+  second: { start: '1) AB = CB — по условию; 2) ∠ABD = ∠CBD — по условию.', facts: ['∠BAD = ∠BCD', 'AD = BD', '∠ADB = ∠ABD'], fact: '∠BAD = ∠BCD', reason: 'given', sign: '2' },
+  third: { start: '1) AB = CB — по условию; 2) AD = CD — по условию.', facts: ['BD = BD', 'AD = BD', 'AB = AD'], fact: 'BD = BD', reason: 'common', sign: '3' },
+};
+function buildProofAnswer(t) {
+  const b = BUILD_PROOF[t.form];
+  return { fact: b.fact, reason: b.reason, sign: b.sign, conclusion: t.form === 'cross' ? 'AOB=COD' : 'ABD=CBD' };
+}
+function permutations([a, b, c]) { return [a + b + c, a + c + b, b + a + c, b + c + a, c + a + b, c + b + a]; }
+function correspondenceReason(t) {
+  const [a, b, c] = t.names;
+  return `1) AB = ${a}${b} — один штрих; 2) BC = ${b}${c} — два; 3) AC = ${a}${c} — три. Значит A ↔ ${a}, B ↔ ${b}, C ↔ ${c}; △ABC = △${a}${b}${c}. Поворот рисунка не меняет соответствие.`;
+}
+function certaintyReason(t) {
+  if (t.kind === 'different') return 'У равных треугольников периметры равны. Здесь 18 ≠ 24, поэтому треугольники не равны. Это доказанное различие, а не недостаток данных.';
+  if (t.kind === 's1') return scen('s1', 'A').why;
+  return `${scen(t.kind, t.v).why} По этим данным равенство не доказано. Это не утверждение о неравенстве: данных недостаточно для выбора между равенством и неравенством.`;
+}
+function correspondSVG(t) {
+  const left = { A: pt(130, 45), B: pt(50, 220), C: pt(278, 205) };
+  const right = { A: pt(530, 215), B: pt(610, 40), C: pt(382, 55) };
+  let s = `<path class="side" d="${triPath(left)}"/><path class="side" d="${triPath(right)}"/>`;
+  const edges = [['A', 'B'], ['B', 'C'], ['A', 'C']];
+  edges.forEach(([a, b], i) => { s += ticksMark(left[a], left[b], i + 1) + ticksMark(right[a], right[b], i + 1); });
+  s += vlab(left.A, 0, -20, 'A') + vlab(left.B, -22, 12, 'B') + vlab(left.C, 22, 12, 'C');
+  s += vlab(right.A, 0, 30, t.names[0]) + vlab(right.B, 20, -15, t.names[1]) + vlab(right.C, -20, -15, t.names[2]);
+  return taskSVG(660, 270, s);
+}
+
 // свой вид ввода для enough: варианты — кнопки, свои у каждого задания
 const TOPIC_INPUTS = {
   enoughIn: {
     html: t => `<div class="inrow">${t.opts.map(([v, l]) => `<button type="button" class="choice" data-choice="${v}">${l}</button>`).join('')}</div>`,
     collect: () => null,
+  },
+  proofBuild: {
+    html: t => {
+      const draft = H.proofRenderTask === t ? Object.fromEntries([...$('hStep').querySelectorAll('select[data-k]')].map(e => [e.dataset.k, e.value])) : {};
+      H.proofRenderTask = t;
+      const select = (key, label, opts) => `<label>${label}<select data-k="${key}" aria-label="${label}"><option value="">Выбери…</option>${opts.map(([v, text]) => `<option value="${esc(v)}"${draft[key] === v ? ' selected' : ''}>${esc(text)}</option>`).join('')}</select></label>`;
+      const cross = t.form === 'cross';
+      return '<div class="proof-inputs">' + select('fact', '3. Равенство', t.facts.map(f => [f, f])) +
+        select('reason', 'Обоснование', [['given', 'По условию'], ['common', 'Общая сторона'], ['vertical', 'Вертикальные углы'], ['picture', 'Так выглядит рисунок']]) +
+        select('sign', 'Признак', [['1', 'Первый'], ['2', 'Второй'], ['3', 'Третий']]) +
+        select('conclusion', 'Вывод', cross ? [['AOB=COD', '△AOB = △COD'], ['AOB=CDO', '△AOB = △CDO']] : [['ABD=CBD', '△ABD = △CBD'], ['ABD=BCD', '△ABD = △BCD']]) +
+        `<button type="button" class="main check" data-act="check">Проверить доказательство</button></div>`;
+    },
+    collect: get => {
+      const x = Object.fromEntries(['fact', 'reason', 'sign', 'conclusion'].map(k => [k, get(k)]));
+      return Object.values(x).every(Boolean) ? x : { empty: true, msg: 'Заполни все четыре части доказательства.' };
+    },
   },
 };
 
@@ -541,17 +654,18 @@ const CATS = {
   per: ['Периметр', 'Периметр — сумма всех трёх сторон: вычитай из него обе данные стороны, складывай все три.'],
   calc: ['Вычисления', 'Проверь сложение и вычитание и приложи ответ к данным чертежа.'],
   proof: ['Обоснование доказательства', 'Запиши три равенства с причинами, проверь расположение угла и назови признак. Общая сторона равна самой себе, вертикальные углы равны.'],
+  certainty: ['Вывод не следует из данных', '«Не доказано» не означает «не равны». Для равенства нужен признак, для неравенства — доказанное различие, иначе данных недостаточно.'],
 };
 
 // ================= Разделы тренажёра =================
 const SECTIONS = [
-  { title: 'Раздел 1', text: 'Какой признак?', types: ['which'],
-    ex: () => 'штрихи и дужки на чертеже → первый, второй или третий?' },
-  { title: 'Раздел 2', text: 'Ловушки: когда признак не работает', types: ['trap', 'enough'],
+  { title: 'Раздел 1', text: 'Признак и соответственные вершины', types: ['which', 'correspond'],
+    ex: () => 'найти признак и правильно записать равенство треугольников' },
+  { title: 'Раздел 2', text: 'Ловушки и достаточность данных', types: ['trap', 'enough', 'certainty'],
     ex: () => 'угол не между сторонами; какого условия не хватает' },
   { title: 'Раздел 3', text: 'Задачи на готовых чертежах', types: ['xside', 'perv'],
     ex: () => 'найти сторону или периметр в равных треугольниках' },
-  { title: 'Раздел 4', text: 'Дополнить доказательство', types: ['proof'],
+  { title: 'Раздел 4', text: 'Собрать доказательство', types: ['proof', 'reasoning'],
     ex: () => 'три равенства → признак → вывод' },
 ];
 
@@ -579,12 +693,12 @@ const PRINT = {
 // Пример для показа: random = false — числа из CONFIG.board, true — «Другие числа» (old — прошлый пример)
 function boardExample(random, old) {
   const C = CONFIG.board;
-  if (!random) return { a: C.a, c: C.c, p: C.p };
+  if (!random) return { a: C.a, c: C.c, p: C.p, names: ['K', 'N', 'M'], ticketSeed: 4817 };
   const rnd = mulberry32((Math.random() * 4294967296) >>> 0);
   let a, c, d;
   do { a = int(rnd, 4, 9); c = int(rnd, 5, 12); d = int(rnd, 4, 14); }
   while (a === c || c === d || a === d || 2 * Math.max(a, c, d) >= a + c + d || (a === old.a && c === old.c));
-  return { a, c, p: a + c + d };
+  return { a, c, p: a + c + d, names: shuffle(rnd, ['K', 'N', 'M']), ticketSeed: int(rnd, 1000, 9999) };
 }
 
 // треугольники показа: AB вертикальна, Δ₂ справа (та же форма — треугольники равны)
@@ -631,8 +745,7 @@ function buildSteps(e) {
     q: `Даны только AB = ${hname('A1B1')}, AC = ${hname('A1C1')} и ∠A = ${hname('∠A1')}. Равны ли треугольники?`,
     a: `Да! Две стороны и угол между ними — первый признак равенства.`,
     note: 'Проговорите формулировку вслух, потом покажите ответ. Обратите внимание класса: угол — именно между данными сторонами.',
-    draw: ph => bPair() + bMarks([['AB', 1], ['CA', 2]], [['A', 1]]) +
-      (ph ? `<g class="new">${tx(490, 46, 'первый признак ✓', 'lab s acc')}</g>` : ''),
+    draw: () => bPair() + bMarks([['AB', 1], ['CA', 2]], [['A', 1]]),
     rec: ph => ph ? [`1-й признак: AB = ${hname('A1B1')}, AC = ${hname('A1C1')}, ∠A = ${hname('∠A1')} — равны`] : [],
   });
   steps.push({
@@ -670,8 +783,7 @@ function buildSteps(e) {
         `<g class="new"><path class="fill2" d="${triPath(BT)}"/>` +
         segln(pt(BT.A.x - rayAB.x * 40, BT.A.y - rayAB.y * 40), pt(BT.B.x + rayAB.x * 60, BT.B.y + rayAB.y * 60), 'link') +
         segln(pt(BT.C.x - rayCB.x * 40, BT.C.y - rayCB.y * 40), pt(BT.B.x + rayCB.x * 60, BT.B.y + rayCB.y * 60), 'link') +
-        tx(BT.B.x - 20, 150, `B = ${vname('B1')}`, 'lab s warm', 'end') +
-        tx(490, 46, 'лучи пересеклись в одной точке', 'lab s warm') + '</g>';
+        tx(BT.B.x - 20, 150, `B = ${vname('B1')}`, 'lab s warm', 'end') + '</g>';
     },
     rec: ph => ph ? [`2-й признак: AC = ${hname('A1C1')}, ∠A = ${hname('∠A1')}, ∠C = ${hname('∠C1')} — равны`] : [],
   });
@@ -718,8 +830,7 @@ function buildSteps(e) {
     q: 'Задача. По какому признаку равны эти треугольники?',
     a: `По второму: BC = ${hname('B1C1')}, ∠B = ${hname('∠B1')}, ∠C = ${hname('∠C1')} — оба угла прилежат к стороне BC.`,
     note: 'Попросите класс назвать пары вслух: что отмечено штрихами, что дужками, и прилежат ли оба угла к отмеченной стороне.',
-    draw: ph => bPair() + bMarks([['BC', 1]], [['B', 1], ['C', 2]]) +
-      (ph ? `<g class="new">${tx(490, 46, 'по второму признаку ✓', 'lab s acc')}</g>` : ''),
+    draw: () => bPair() + bMarks([['BC', 1]], [['B', 1], ['C', 2]]),
     rec: ph => ph ? [`△ABC = ${hname('△A1B1C1')} — по 2-му признаку (BC, ∠B, ∠C)`] : [],
   });
   steps.push({
@@ -730,8 +841,7 @@ function buildSteps(e) {
       let s = bPair() + bMarks([['BC', 1]], [['B', 1], ['C', 2]]);
       s += segLab(BT2.A, BT2.B, BT2.C, String(e.a), 26, 'num') + segLab(BT2.B, BT2.C, BT2.A, String(e.c), 26, 'num');
       s += tx(930, 44, `P△${vname('A1B1C1')} = ${e.p} см`, 'lab s', 'end');
-      if (ph) s += `<g class="new">${segln(BT.A, BT.C, 'hline')}${segln(BT2.A, BT2.C, 'hline')}` +
-        tx(490, 46, `AC = ${vname('A1C1')} = ${d} см`, 'lab s warm') + '</g>';
+      if (ph) s += `<g class="new">${segln(BT.A, BT.C, 'hline')}${segln(BT2.A, BT2.C, 'hline')}</g>`;
       return s;
     },
     rec: ph => ph ? [`${hname('A1C1')} = ${e.p} − ${e.a} − ${e.c} = ${d}; AC = ${hname('A1C1')} = ${d} см`] : [],
@@ -761,7 +871,147 @@ function buildSteps(e) {
       '2-й: сторона и два прилежащих угла',
       '3-й: три стороны; угол не между сторонами — не признак'],
   });
+  // Дополнительные обсуждения стоят после ловушки, а самостоятельная работа — перед итогом.
+  steps.splice(7, 0, {
+    id: 'not-proved',
+    q: 'Равенство не доказано. Значит ли это, что треугольники не равны?',
+    a: 'Нет. Возможно, они равны, а возможно — нет. Данных недостаточно. Для вывода «не равны» нужно доказать различие.',
+    note: 'Попросите сформулировать три разных вывода: «равны», «не равны», «данных недостаточно». Не путайте отсутствие доказательства с доказательством обратного.',
+    draw: () => bPair() + bMarks([['AB', 1], ['CA', 2]], [['B', 1]]),
+    rec: ph => ph ? ['Нет признака → пока недостаточно данных', '«Не равны» требует доказанного различия'] : [],
+  }, {
+    id: 'three-angles',
+    q: 'Все три пары углов равны. Обязательно ли равны треугольники?',
+    a: 'Нет. Их форма одинакова, а размеры могут различаться. Три равных угла не дают признака равенства.',
+    note: 'Сравните большой и уменьшенный треугольник. Не вводите ещё признаки подобия: сейчас достаточно увидеть, что совпадение углов не задаёт размер.',
+    draw: ph => `<g transform="translate(65 25) scale(1.28)">${svgInside(pairSVG(scen('aaa', ''), 0.7))}</g>` +
+      (ph ? tx(490, 390, 'Одинаковые углы — размер не задан', 'lab s warm') : ''),
+    rec: ph => ph ? ['Три угла — не признак равенства треугольников'] : [],
+  }, {
+    id: 'correspondence',
+    q: `Ученик написал △ABC = △${e.names[0]}${e.names[2]}${e.names[1]}. Верен ли порядок вершин?`,
+    a: `Исправление: △ABC = △${e.names.join('')}. Сопоставляем вершины по штрихам, а не по положению на экране.`,
+    note: correspondenceReason({ names: e.names }),
+    draw: ph => `<g transform="translate(65 25) scale(1.28)">${svgInside(correspondSVG({ names: e.names }))}</g>`,
+    rec: ph => ph ? [`A ↔ ${e.names[0]}; B ↔ ${e.names[1]}; C ↔ ${e.names[2]}`, `△ABC = △${e.names.join('')}`] : [],
+  });
+  steps.splice(steps.length - 1, 0, ...['second', 'third'].map(form => ({
+    id: 'independent-' + form,
+    q: PROOFS[form].given,
+    a: PROOFS[form].solution,
+    note: form === 'second' ? 'Сначала две минуты самостоятельной записи. Попросите назвать сторону и проверить, что оба угла прилежат именно к ней. Затем откройте доказательство.'
+      : 'Попросите записать доказательство полностью: назвать треугольники, перечислить три равенства с причинами, назвать признак и сделать вывод. Общая сторона не отмечена штрихами.',
+    draw: () => `<g transform="translate(305 50) scale(1.05)">${svgInside(proofSVG(form))}</g>`,
+    rec: ph => ph ? [form === 'second' ? 'AB = CB; ∠ABD = ∠CBD; ∠BAD = ∠BCD' : 'AB = CB; AD = CD; BD = BD — общая', `△ABD = △CBD — по ${form === 'second' ? '2' : '3'}-му признаку`] : [],
+  })), {
+    id: 'exit-ticket',
+    q: 'Билет на выход: 3 задания за 3 минуты. Ответь самостоятельно.',
+    a: ticketBoardAnswer(makeLessonSheet(e.ticketSeed, 'ticket')),
+    note: `Тот же билет можно напечатать: «Раздатка» → «Билет на выход», номер 1-${e.ticketSeed}. По одному баллу за ответ с верным обоснованием. Если ошиблись в признаке — повторите формулировку, в причине — способ доказательства.`,
+    draw: () => ticketBoardDraw(makeLessonSheet(e.ticketSeed, 'ticket')),
+    rec: () => ['1. Признак; 2. Ошибка в рассуждении; 3. Обоснование'],
+  });
   return steps;
 }
 // Превью показывает первые 11 шагов; постер — формулировка первого признака на чертеже.
 const BOARD = { previewUntil: 10, poster: 1 };
+
+function svgInside(s) { return s.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, ''); }
+
+// Дополнительные листы именно этой темы; генератор кодового слова остаётся прежним.
+const LESSON_KINDS = { word: 'Кодовое слово', proofs: 'Практикум доказательств', ticket: 'Билет на выход' };
+const renameGeometry = (s, names) => s.replace(/[ABCD]/g, c => names['ABCD'.indexOf(c)]);
+function makeLessonSheet(num, kind) {
+  const rnd = taskRnd(num, kind === 'proofs' ? 701 : 702);
+  const label = GEN_VERSION + '-' + num;
+  if (kind === 'proofs') {
+    const names = pick(rnd, [['A', 'B', 'C', 'D'], ['K', 'L', 'M', 'N'], ['P', 'Q', 'R', 'S']]);
+    const proofs = ['common', 'second', 'third'].map((form, i) => ({ form, sign: String(i + 1),
+      given: renameGeometry(PROOFS[form].given, names), solution: renameGeometry(PROOFS[form].solution, names) }));
+    return { num, label, kind, names, proofs, correspondence: generate('correspond', rnd) };
+  }
+  if (kind === 'ticket') {
+    const sign = generate('which', rnd), error = generate('trap', rnd);
+    let reason;
+    do reason = generate('proof', rnd); while (!['common', 'cross'].includes(reason.form));
+    return { num, label, kind, sign, error, reason };
+  }
+  throw new Error('Неизвестный дополнительный лист: ' + kind);
+}
+function proofPicture(form, names) {
+  // Меняем только подписи текста, не буквы в атрибутах SVG и координатах.
+  return proofSVG(form).replace(/>([ABCD])<\/text>/g, (_, c) => `>${names['ABCD'.indexOf(c)]}</text>`);
+}
+function extraSheetHead(v, title) {
+  return `<div class="shead"><span>Фамилия, имя</span><span>Класс</span><span>Дата</span><span class="vn">${v.label}</span></div><h2>${title}</h2>`;
+}
+function proofPracticeHTML(v, grid) {
+  return `<div class="sheet lesson-sheet${grid ? ' with-grid' : ''}">${extraSheetHead(v, 'Практикум: доказываем равенство треугольников')}
+    <p class="instr">В каждой задаче запиши три равенства с причинами, признак и вывод. Порядок вершин имеет значение.</p>
+    ${v.proofs.map((p, i) => `<section class="practice-task"><h3>${i + 1}. ${['Дополни доказательство', 'Заверши доказательство', 'Докажи самостоятельно'][i]}</h3>
+      <div class="practice-row">${proofPicture(p.form, v.names)}<div><p>${p.given}</p>
+      ${i < 2 ? `<p>${renameGeometry(BUILD_PROOF[p.form].start, v.names)}</p>` : ''}
+      ${i === 0 ? `<p>3) __________ — __________.</p><p>${renameGeometry('△ABD = △____ по ____ признаку.', v.names)}</p>` : '<div class="proof-space"></div>'}</div></div></section>`).join('')}
+    <section class="practice-task match-practice"><h3>4. Исправь порядок вершин</h3><div class="practice-row">${correspondSVG(v.correspondence)}
+    <div><p>Треугольники равны. Ученик написал △ABC = △${v.correspondence.names[0]}${v.correspondence.names[2]}${v.correspondence.names[1]}.</p>
+    <p>Исправь запись и назови сторону, равную BC.</p><div class="proof-space short"></div></div></div></section>
+    <p class="lesson-end">Проверка: у каждого равенства есть причина; признак подходит к данным; вершины записаны в верном порядке.</p></div>`;
+}
+function ticketHTML(v) {
+  const reason = v.reason;
+  return `<div class="sheet ticket-sheet">${extraSheetHead(v, 'Билет на выход · 3 минуты')}
+    <section class="ticket-task"><b>1. Назови признак.</b><div class="ticket-row">${pairSVG(scen(v.sign.kind, v.sign.v))}<div><p>Признак: __________</p><p>Равные пары: __________________<br>____________________________<br>____________________________</p></div></div></section>
+    <section class="ticket-task"><b>2. Найди ошибку в рассуждении.</b><p>${v.error.kind === 'aaa' ? '«Три пары углов равны, значит треугольники равны».' : '«Две стороны и угол не между ними равны, значит треугольники равны».'}</p><p>Исправление: __________________________________________</p></section>
+    <section class="ticket-task"><b>3. Допиши обоснование.</b><p>${PROOFS[reason.form].given.split(' Докажи:')[0]}</p><p>${reason.form === 'common' ? 'BD = BD, потому что' : '∠AOB = ∠COD, потому что'} _____________________</p></section>
+    <p class="lesson-end">Каждый ответ обоснуй. Фамилия и номер варианта помогут учителю проверить работу.</p></div>`;
+}
+function ticketReasonForm(v) { return v.reason.form; }
+function ticketBoardAnswer(v) {
+  return `1) ${SIGN_WORD[SIGN_OF[v.sign.kind]]} признак. 2) Равенство не доказано: данных недостаточно. 3) ${ticketReasonForm(v) === 'common' ? 'BD — общая сторона.' : 'Углы вертикальные.'}`;
+}
+function ticketBoardDraw(v) {
+  const elems = scen(v.sign.kind, v.sign.v).elems.map(s => s.replace(/<sub>1<\/sub>/g, '₁').replace(/<[^>]+>/g, ''));
+  return tx(40, 42, '1. Назови признак по данным:', 'lab s', 'start') +
+    elems.map((s, i) => tx(65, 82 + i * 36, s, 'lab s', 'start')).join('') +
+    tx(40, 215, v.error.kind === 'aaa' ? '2. «Три угла равны — значит треугольники равны».' : '2. «Две стороны и угол НЕ между ними — признак».', 'lab s', 'start') +
+    tx(65, 255, 'В чём ошибка? Какой вывод можно сделать?', 'lab s', 'start') +
+    tx(40, 325, ticketReasonForm(v) === 'common' ? '3. BD = BD. Почему? Сторона принадлежит обоим треугольникам.' : '3. AC и BD пересекаются в O. Почему ∠AOB = ∠COD?', 'lab s', 'start');
+}
+function extraKeyHTML(vs, kind) {
+  return `<div class="page key lesson-key"><h2>Ключ учителя · ${LESSON_KINDS[kind]}</h2>${vs.map(v => `<section class="lesson-key-row"><h3>Вариант ${v.label}</h3>${kind === 'proofs'
+    ? v.proofs.map((p, i) => `<p><b>${i + 1}.</b> ${p.solution}</p>`).join('') + `<p><b>4.</b> ${correspondenceReason(v.correspondence)} Сторона BC равна ${v.correspondence.names[1]}${v.correspondence.names[2]}.</p>`
+    : `<p><b>1.</b> ${TYPES.which.ok(v.sign)}</p><p><b>2.</b> Ошибка: ${v.error.kind === 'aaa' ? 'равные углы не задают размер треугольника, поэтому признака по трём углам нет.' : 'для первого признака угол должен лежать между данными сторонами; без этого условия признака нет.'} Вывод: данных недостаточно. Это не доказательство неравенства.</p><p><b>3.</b> ${ticketReasonForm(v) === 'common' ? 'BD = BD — общая сторона.' : '∠AOB = ∠COD — вертикальные углы.'}</p><p>По 1 баллу за каждый обоснованный ответ. Ошибка в № 1 — повторить признаки; в № 2 — достаточность данных; в № 3 — причины равенств.</p>`}</section>`).join('')}</div>`;
+}
+
+function helpInit() {
+  // Тематические листы используют номера, печать и переключатель ядра, сохраняя его кодовое слово.
+  const baseDraw = drawSheets;
+  drawSheets = function () {
+    const base = baseDraw();
+    const kind = $('pKind').value;
+    if (!['proofs', 'ticket'].includes(kind)) return base;
+    const vs = printNums.map(n => makeLessonSheet(n, kind));
+    const grid = $('pSpace').checked;
+    const two = kind === 'ticket' && $('pTwo').checked && !grid;
+    $('pTwo').disabled = grid || kind === 'proofs';
+    $('pAbout').textContent = kind === 'proofs'
+      ? 'Три доказательства по разным признакам и задача на порядок вершин. Один вариант на A4; ключ содержит полные доказательства.'
+      : 'Билет на 3 минуты: признак, ошибка в рассуждении, обоснование равенства. Можно печатать два варианта на A4. Ключ — по номеру.';
+    const sheet = v => kind === 'proofs' ? proofPracticeHTML(v, grid) : ticketHTML(v);
+    let html = '';
+    if (two) for (let i = 0; i < vs.length; i += 2) html += `<div class="page half compact lesson-page">${sheet(vs[i])}${vs[i + 1] ? sheet(vs[i + 1]) : ''}</div>`;
+    else html = vs.map(v => `<div class="page lesson-page${grid ? '' : ' compact'}">${sheet(v)}</div>`).join('');
+    $('pSheets').innerHTML = (vs.length ? extraKeyHTML(vs, kind) : '') + html;
+    return vs;
+  };
+  const choices = Object.entries(LESSON_KINDS);
+  $('pKind').insertAdjacentHTML('beforebegin', `<div class="row"><b>Вид листа:</b><div class="seg" role="group" aria-label="Вид листа">${choices.map(([k, text]) => `<button type="button" data-kind-set="${k}" aria-pressed="${k === 'word'}">${text}</button>`).join('')}</div></div>`);
+  const startPrint = document.querySelector('#start [data-go="print"]');
+  const box = document.createElement('div'); box.className = 'mode split';
+  box.innerHTML = `<b>🖨 Раздатка</b><span>${META.modePrint}</span><div class="kinds">${choices.map(([k, text]) => `<button type="button" data-go="print" data-kind="${k}">${text}</button>`).join('')}</div>`;
+  startPrint.replaceWith(box);
+  if (['proofs', 'ticket'].includes(P.get('kind'))) pendingKind = P.get('kind');
+  // Эти обработчики ядро зарегистрировало до тематической настройки; дополняем их перерисовкой.
+  $('pSpace').addEventListener('change', () => drawSheets());
+  $('pTwo').addEventListener('change', () => drawSheets());
+}
