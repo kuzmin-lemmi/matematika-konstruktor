@@ -3,7 +3,7 @@
 //   npm run publish -- <slug> --approved   опубликовать — ТОЛЬКО после явного одобрения автора в чате
 // Работает с папкой сайта из constructor.config.json (или --site). Нужны git и gh (вход в GitHub уже выполнен).
 //
-// Публикация: свежий main → сборка всех тем → постер (если нет) → проверка карточки → тесты конструктора
+// Публикация: заранее подготовленный main → сборка выбранной темы → актуальные постеры → карточка → тесты конструктора
 // и сайта (npm run validate) → ветка, коммит, PR → слияние → запуск GitHub Pages → проверка живого сайта →
 // заморозка вариантов темы в конструкторе.
 import { execSync, execFileSync } from 'node:child_process';
@@ -53,7 +53,7 @@ const cfg = readConfig();
 const SITE = cfg.site;
 const title = JSON.parse(readFileSync(join(materialDir(slug), 'material.json'), 'utf8')).title;
 
-// ---------- 1. Сайт: свежий main ----------
+// ---------- 1. Локальная папка сайта (без предварительного fetch/merge) ----------
 step('Сайт: проверяю локальную рабочую папку');
 sh('git --version', SITE, { quiet: true });
 if (MODE === 'publish') sh('gh auth status', SITE, { quiet: true });
@@ -66,8 +66,8 @@ if (MODE === 'publish' && foreign.length) fail(`В папке сайта ест�
 if (!existsSync(join(SITE, 'node_modules'))) fail('Сначала установи зависимости сайта: npm ci');
 if (MODE === 'publish' && sh('git diff --cached --name-only', SITE, { quiet: true }).trim()) fail('Индекс сайта не пуст. Сначала заверши отдельный коммит.');
 
-// ---------- 2. Сборка всех тем ----------
-step('Собираю темы конструктора в сайт');
+// ---------- 2. Сборка выбранной темы ----------
+step('Собираю выбранную тему в сайт');
 const slugs = [slug];
 for (const s of slugs) { writeFileSync(outFile(cfg, s), buildMaterial(s)); log(`✓ ${s}`); }
 
