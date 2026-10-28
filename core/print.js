@@ -88,7 +88,7 @@ function ogeSheetHTML(v) {
 function ogeKeyHTML(vs) {
   const head = vs[0].tasks.map((_, i) => `<th>${i + 1}</th>`).join('');
   return `<div class="page key"><h2>Ключ учителя · бланк ответов · ${lowerTitle()}</h2>
-    <table class="key"><tr><th>Вариант</th>${head}</tr>
+    <table class="key"><thead><tr><th>Вариант</th>${head}</tr></thead>
     ${vs.map(v => `<tr><td>${v.label}</td>${v.answers.map(a => `<td>${a}</td>`).join('')}</tr>`).join('')}
     </table><p style="font-size:10pt">Ответ верен, если совпадает с ключом (запятая или точка — одинаково). Ключ всегда можно восстановить
     по номеру варианта: режим «Раздатка», вид листа «Бланк ответов».</p></div>`;
@@ -96,7 +96,7 @@ function ogeKeyHTML(vs) {
 function keyHTML(vs) {
   const head = vs[0].tasks.map((_, i) => `<th>${i + 1}</th>`).join('');
   return `<div class="page key"><h2>Ключ учителя · ${lowerTitle()}</h2>
-    <table class="key"><tr><th>Вариант</th>${head}<th>Слово</th></tr>
+    <table class="key"><thead><tr><th>Вариант</th>${head}<th>Слово</th></tr></thead>
     ${vs.map(v => `<tr><td>${v.label}</td>${v.tasks.map(t => `<td>${TYPES[t.type].keyHTML(t)}</td>`).join('')}<td><b>${v.word}</b></td></tr>`).join('')}
     </table><p style="font-size:10pt">Слово сложилось — все ответы верны. Ключ всегда можно восстановить по номеру варианта в режиме «Раздатка».</p></div>`;
 }
@@ -136,8 +136,26 @@ function drawSheets() {
     html += `<div class="page half compact ${format.pageClass || ''}">${sheet(vs[i])}${vs[i + 1] ? sheet(vs[i + 1]) : ''}</div>`;
   else html = vs.map(v => `<div class="page ${format.pageClass || ''}${space ? '' : ' compact'}">${sheet(v)}</div>`).join('');
   $('pSheets').innerHTML = (vs.length ? key(vs) : '') + html;
+  fitKeys();
   return vs;
 }
+// Ключ с длинными ответами (многочлены, 9 заданий) шире книжного листа: печатаем его на альбомном A4;
+// не хватило и его — уменьшаем шрифт до 8pt, затем разрешаем перенос внутри ячеек.
+// Размеры в мм, поэтому подгонка на экране верна и для печати.
+function fitKeys() {
+  for (const t of document.querySelectorAll('#pSheets .page.key table')) {
+    const page = t.closest('.page');
+    const avail = () => { const cs = getComputedStyle(page); return page.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); };
+    if (!(avail() > 0)) continue;                        // лист не на экране (или jsdom без вёрстки)
+    page.classList.remove('land'); t.classList.remove('wrap'); t.style.fontSize = '';
+    if (t.offsetWidth > avail() + 1) page.classList.add('land');
+    for (let pt = 10; t.offsetWidth > avail() + 1 && pt >= 8; pt -= .5) t.style.fontSize = pt + 'pt';
+    if (t.offsetWidth > avail() + 1) t.classList.add('wrap');
+  }
+}
+// шрифт подгрузился позже первой отрисовки — ширина ответов изменилась
+document.fonts?.ready?.then(fitKeys);
+addEventListener('beforeprint', fitKeys);
 function printNow(what) {
   document.body.classList.remove('print-key', 'print-sheets');
   document.body.classList.add(what === 'key' ? 'print-key' : 'print-sheets');

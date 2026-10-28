@@ -241,6 +241,9 @@ table.ans .tall td{height:13mm}
 table.key{border-collapse:collapse;width:100%;font-size:10.5pt}
 table.key td,table.key th{border:1px solid #000;padding:1mm 1.2mm;text-align:center;white-space:nowrap}
 table.key td:first-child{font-weight:700}
+.page.key.land{width:297mm;min-height:210mm}
+table.key.wrap td,table.key.wrap th{white-space:normal;padding:.6mm .8mm}
+table.key.wrap td:first-child{white-space:nowrap}
 
 /* тренажёр */
 .hhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-bottom:16px}
@@ -297,7 +300,9 @@ table.key td:first-child{font-weight:700}
 
 body.student [data-act="menu"],body.student #hLinks{display:none !important}
 @page{size:A4;margin:0}
+@page land{size:A4 landscape;margin:0}
 @media print{
+  .page.key.land{page:land}
   html,body{background:#fff !important;color:#000 !important;background-image:none !important;padding:0}
   .no-print,.screen:not(#print),.topright{display:none !important}
   #print .wrap{max-width:none;padding:0}
