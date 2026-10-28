@@ -2,7 +2,10 @@
 // На экране — то, что видит класс: короткий вопрос, ответ, чертёж и запись в тетради.
 // Что сказать словами — в подсказке учителю (кнопка «💬 Учителю»).
 const BW = 980, BH = 400;
-const B = { e: null, steps: [], i: 0, phase: 0, timer: 0, notes: false };
+const B = { e: null, m: {}, steps: [], i: 0, phase: 0, timer: 0, notes: false };
+// q, a, note и rec шага могут быть строкой или функцией (m — модель живой доски, phase — 0 вопрос, 1 ответ)
+const stepVal = (x, ...args) => typeof x === 'function' ? x(...args) : x;
+const setHTML = (el, s) => { if (el.innerHTML !== s) el.innerHTML = s; };
 const svg = (inner, label) => `<svg viewBox="0 0 ${BW} ${BH}" role="img" aria-label="${label}" preserveAspectRatio="xMidYMid meet">${inner}</svg>`;
 const tx = (x, y, s, cls = 'lab', anchor = 'middle') => `<text class="${cls}" x="${x}" y="${y}" text-anchor="${anchor}">${s}</text>`;
 const sr = s => `√<tspan class="ov">${s}</tspan>`;   // корень в подписи чертежа
@@ -35,39 +38,53 @@ function numLine(y, a, b, step, labelEvery, hl, cls = '') {
 }
 
 // пример для показа: тема даёт boardExample(random, прошлый пример) и buildSteps(пример) → шаги
-// {q — вопрос классу, a — ответ, note — подсказка учителю, draw(phase) — SVG или '', rec(phase) — строки тетради}
+// {q — вопрос классу, a — ответ, note — подсказка учителю, draw(phase, m) — SVG или '', rec(phase, m) — строки тетради,
+//  live — что можно двигать и менять на этом шаге (core/live.js)}
 function boardNumbers(random) {
+  liveStop();
   B.e = boardExample(random, B.e || {});
   B.steps = buildSteps(B.e);
+  B.m = liveModel(B.e);
   B.i = 0; B.phase = 0;
+  liveEnter();
 }
 function renderBoard() {
   if (!B.steps.length) boardNumbers(false);
-  const st = B.steps[B.i];
+  const st = B.steps[B.i], m = B.m, ph = B.phase;
   $('bCnt').textContent = `Шаг ${B.i + 1} из ${B.steps.length}`;
-  $('bQ').innerHTML = st.q;
-  $('bA').innerHTML = st.a;
-  $('bA').classList.toggle('hide', B.phase === 0);
-  const pic = st.draw(B.phase);
-  $('bStage').innerHTML = pic ? svg(pic, 'Чертёж к шагу') : '';
-  $('bRec').innerHTML = st.rec(B.phase).map(l => `<div class="ln">${l}</div>`).join('');
-  $('bNote').innerHTML = `<b>Учителю</b>${st.note}`;
+  setHTML($('bQ'), stepVal(st.q, m, ph));
+  setHTML($('bA'), stepVal(st.a, m, ph));
+  $('bA').classList.toggle('hide', ph === 0);
+  const pic = st.draw(ph, m), handles = liveHandlesSVG(st);
+  const focused = document.activeElement?.closest?.('[data-handle]')?.dataset.handle;
+  $('bStage').innerHTML = pic || handles ? svg(pic + handles, 'Чертёж к шагу').replace('<svg ', handles ? '<svg class="live" ' : '<svg ') : '';
+  if (focused) $('bStage').querySelector(`[data-handle="${focused}"]`)?.focus({ preventScroll: true });
+  setHTML($('bRec'), stepVal(st.rec, ph, m).map(l => `<div class="ln">${l}</div>`).join(''));
+  setHTML($('bNote'), `<b>Учителю</b>${stepVal(st.note, m, ph)}`);
   $('bNote').hidden = !B.notes;
   $('bNotesBtn').setAttribute('aria-pressed', String(B.notes));
-  $('bNext').textContent = B.phase === 0 ? 'Показать ответ' : 'Далее →';
-  $('bNext').disabled = B.i === B.steps.length - 1 && B.phase === 1;
+  $('bNext').textContent = ph === 0 ? 'Показать ответ' : 'Далее →';
+  $('bNext').disabled = B.i === B.steps.length - 1 && ph === 1;
+  liveRenderControls(st);
 }
 function boardNext() {
-  if (B.phase === 0) B.phase = 1;
-  else if (B.i < B.steps.length - 1) { B.i++; B.phase = 0; }
-  renderBoard();
+  if (B.phase === 0) { liveStop(); B.phase = 1; renderBoard(); liveReveal(); }
+  else if (B.i < B.steps.length - 1) boardGo(B.i + 1, 0);
 }
 function boardPrev() {
-  if (B.phase === 1) B.phase = 0;
-  else if (B.i > 0) { B.i--; B.phase = 1; }
+  if (B.phase === 1) { liveStop(); B.phase = 0; liveBack(); renderBoard(); }
+  else if (B.i > 0) boardGo(B.i - 1, 1);
+}
+// переход к шагу: модель ставится, как задумано шагом (live.enter); с phase = 1 — сразу итог опыта
+function boardGo(i, phase = 0) {
+  liveStop();
+  const was = B.i;
+  B.i = Math.max(0, Math.min(i, B.steps.length - 1)); B.phase = phase ? 1 : 0;
+  if (B.i !== was || B.phase === 1 || !LV.entered) liveEnter(B.phase === 1);
   renderBoard();
 }
-function boardGo(i, phase = 0) { B.i = Math.max(0, Math.min(i, B.steps.length - 1)); B.phase = phase ? 1 : 0; renderBoard(); }
+// «Заново»: исходная модель примера и первый шаг
+function boardRestart() { liveStop(); B.m = liveModel(B.e); LV.entered = false; boardGo(0, 0); }
 function boardNotes() { B.notes = !B.notes; store.set('notes', B.notes ? 1 : 0); renderBoard(); }
 // превью на сайте: доска сама идёт по шагам до BOARD.previewUntil и начинает сначала
 function boardStartPreview() {

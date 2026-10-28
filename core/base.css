@@ -71,7 +71,7 @@ h1{font-size:clamp(30px,5vw,48px);line-height:1.1;margin:0 0 12px;letter-spacing
 .icon{padding:.35em .6em;min-width:44px;min-height:44px}
 
 /* доска: на проекторе шрифт не мельче 28px */
-#board{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto auto;height:100vh;height:100dvh;padding:10px clamp(12px,3vw,40px)}
+#board{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto auto auto;height:100vh;height:100dvh;padding:10px clamp(12px,3vw,40px)}
 .bbar{display:flex;align-items:center;gap:8px;font-size:20px}
 .bbar .ttl{font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bbar .cnt{color:var(--soft);font-weight:600;white-space:nowrap;margin-right:6px}
@@ -122,6 +122,44 @@ svg .dot{fill:var(--b);stroke:var(--surface);stroke-width:3}
 svg .lbl text{font-size:32px;font-weight:700}
 svg .lbl line{stroke:var(--ink);stroke-width:3}
 svg .lbl.warm text{fill:var(--b)} svg .lbl.warm line{stroke:var(--b)}
+/* чертёжные помощники GEO (core/geom.js): линии толще 4px, подписи с подложкой цвета фона — читаются поверх линий */
+svg .g-ln{fill:none;stroke:var(--ink);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+svg .g-thin{fill:none;stroke:var(--ink);stroke-width:2.5;stroke-linecap:round}
+svg .g-dash{fill:none;stroke:var(--soft);stroke-width:3;stroke-dasharray:12 9;stroke-linecap:round}
+svg .g-hl{fill:none;stroke:var(--b);stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+svg .g-fig{fill:var(--a-soft);fill-opacity:.6;stroke:var(--ink);stroke-width:5;stroke-linejoin:round}
+svg .g-fig.b{fill:var(--b-soft);fill-opacity:.85}
+svg .g-fig.ghost{fill:none;stroke:var(--soft);stroke-width:3;stroke-dasharray:12 9}
+svg .g-circ{fill:none;stroke:var(--ink);stroke-width:3}
+svg .g-pt{fill:var(--ink)}
+svg .g-mark{fill:none;stroke:var(--ink);stroke-width:3}
+svg .g-tick{stroke:var(--b);stroke-width:3.5;stroke-linecap:round}
+svg .g-sec{fill:var(--b-soft);stroke:var(--b);stroke-width:3}
+svg .g-sec.a{fill:var(--a-soft);stroke:var(--a)}
+svg .g-arrow{stroke:var(--b);stroke-width:5;fill:var(--b);stroke-linecap:round}
+svg .g-vl,svg .g-lab,svg .g-num{paint-order:stroke;stroke:var(--bg);stroke-width:8px;stroke-linejoin:round}
+svg .g-vl{font-size:40px;font-weight:700;font-style:italic}
+svg .g-vl .g-sub{font-size:26px;font-style:normal}
+svg .g-lab{font-size:34px;font-weight:600}
+svg .g-num{font-size:34px;font-weight:800}
+svg .g-num.b,svg .g-lab.b{fill:var(--b)} svg .g-num.a,svg .g-lab.a{fill:var(--accent)}
+/* живая доска (core/live.js): ручки — крупные, для пальца и пера; панель — под чертежом */
+.bstage svg.live{touch-action:none;user-select:none;-webkit-user-select:none}
+svg .lv-h{cursor:grab;outline:none}
+#board.dragging,#board.dragging svg .lv-h{cursor:grabbing}
+svg .lv-hit{fill:transparent}
+svg .lv-dot{fill:var(--b);stroke:var(--surface);stroke-width:5}
+svg .lv-h:hover .lv-dot{stroke:var(--accent)}
+svg .lv-h:focus-visible .lv-dot{stroke:var(--accent);stroke-width:9}
+.blive{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:center;justify-content:center;padding:6px 0 2px;font-size:22px}
+.blive .lv-c{display:inline-flex;align-items:center;gap:12px;font-weight:600}
+.blive input[type=range]{width:min(320px,55vw);height:40px;accent-color:var(--accent);cursor:pointer}
+.blive output{min-width:3.2em;font-weight:800;color:var(--accent)}
+.blive button{min-height:48px;font-size:20px;padding:.2em .8em}
+.blive button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.blive .lv-tools{display:inline-flex;gap:8px}
+#board.preview .blive{visibility:hidden}
+@media (max-width:600px){ .blive{font-size:17px;gap:6px 14px} .blive button{font-size:16px;min-height:44px} }
 svg .new{animation:fade .6s ease-out both}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion: reduce){ svg .new, .mode:hover{animation:none;transform:none} }

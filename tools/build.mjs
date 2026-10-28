@@ -9,8 +9,8 @@ import { ROOT, readConfig, outFile, materialDir, isSlug } from './paths.mjs';
 
 const CORE = join(ROOT, 'core');
 // порядок важен только для кода, который выполняется сразу при загрузке: тема — после общих функций,
-// types.js (значения по умолчанию для TYPES) — после темы, запуск (boot.js) — последним
-const SCRIPT_ORDER = ['shell.js', 'math.js', '@topic', 'types.js', 'print.js', 'board.js', 'home.js', 'boot.js'];
+// types.js (значения по умолчанию для TYPES) — после темы, запуск (boot.js) — последним; GEO нужен теме при загрузке
+const SCRIPT_ORDER = ['shell.js', 'math.js', 'geom.js', '@topic', 'types.js', 'print.js', 'board.js', 'live.js', 'home.js', 'boot.js'];
 const REQUIRED_META = ['title', 'description', 'kicker', 'lead', 'modeBoard', 'modePrint', 'modeHome', 'printTitle', 'homeTitle', 'homeIntro'];
 // что тема обязана объявить (проверка по тексту — до запуска в браузере)
 const REQUIRED_TOPIC = ['const CONFIG', 'const GEN_VERSION', 'const TYPES', 'const CATS', 'const SECTIONS', 'const KINDS_V1',
@@ -21,8 +21,8 @@ const read = f => readFileSync(f, 'utf8');
 // подстановка без спецсимволов String.replace ($&, $1 в коде не должны срабатывать)
 const put = (s, mark, value) => s.split(mark).join(value);
 
-export function buildMaterial(slug) {
-  const dir = materialDir(slug);
+// dir — другая папка темы (тест-контракт так проверяет заготовку templates/new-material)
+export function buildMaterial(slug, dir = materialDir(slug)) {
   if (!existsSync(dir)) throw new Error(`Нет темы materials/${slug}/. Создай её: npm run new -- ${slug}`);
   const meta = JSON.parse(read(join(dir, 'material.json')));
   const missing = REQUIRED_META.filter(k => !meta[k]);

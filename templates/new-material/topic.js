@@ -3,7 +3,9 @@
 // Что тема обязана задать и как — ИНСТРУКЦИЯ.md, раздел «Из чего состоит тема».
 // Готовые функции ядра: int, pick, shuffle, mulberry32; дроби Q, qadd, qsub, qmul, qeq, qneg, gcd, isqrt, qsqrt,
 // floorSqrt, toMixed, decStr; запись F (дробь этажом), M (смешанное число), RT (корень), X (курсивный x), htmlQ,
-// keyQ, D, esc, plural, MINUS; чертежи tx, grid, under, svgFrac, numLine, sr, ds (core/board.js).
+// keyQ, D, esc, plural, MINUS; чертежи tx, grid, under, svgFrac, numLine, sr, ds (core/board.js);
+// геометрия GEO — точки, прямые, углы, штрихи, подписи вершин (core/geom.js); живая доска LIVE, step.live, liveTo
+// (core/live.js). Схемы — ИНСТРУКЦИЯ.md, раздел 9.
 
 // ================= Параметры: учитель может поменять их за минуту =================
 const CONFIG = {
@@ -117,23 +119,62 @@ function boardExample(random, old) {
   let t; do t = generate('sum', rnd); while (t.a === old.a && t.b === old.b);
   return { a: t.a, b: t.b };
 }
+// Живая модель доски (core/live.js): учитель двигает точки и меняет слагаемое, сумма пересчитывается.
+// ЗАМЕНИ: модель своей темы — простые данные, из которых рисуется чертёж. Ядро даёт мышь, касание,
+// клавиатуру, сброс, повтор опыта и плавное движение; тема пишет только математику.
+const NL = { lo: -20, hi: 20, y: 200 };
+const nlX = v => 90 + (v - NL.lo) * 800 / (NL.hi - NL.lo);          // число → x на чертеже
+const nlV = x => NL.lo + (x - 90) * (NL.hi - NL.lo) / 800;          // x на чертеже → число
+const LIVE = {
+  model: e => ({ a: e.a, b: e.b, go: 1, mods: false }),   // go — какую часть сдвига на b уже прошли (для показа движения)
+  fix(m) {                                                // целые числа, сумма не уходит с прямой
+    m.a = Math.round(GEO.clamp(m.a, NL.lo, NL.hi));
+    m.b = Math.round(GEO.clamp(m.b, NL.lo - m.a, NL.hi - m.a));
+  },
+  ok: m => m.b !== 0,                                     // ноль прибавлять неинтересно: сдвига нет
+};
 // Шаги: q — вопрос классу (до показа), a — ответ, note — что сказать (подсказка учителю),
-// draw(phase) — SVG внутри viewBox 980 × 400 или '' (без чертежа), rec(phase) — строки «Запись в тетради»
+// draw(phase, m) — SVG внутри viewBox 980 × 400 или '' (без чертежа), rec(phase, m) — строки «Запись в тетради»;
+// q, a, note могут быть функциями модели (m, phase); live — что можно двигать и менять на шаге.
+// Чертёж — функциями ядра: numLine, tx, under (core/board.js) и GEO (core/geom.js): точки, отрезки, стрелки, углы.
 function buildSteps(e) {
-  const lo = -20, hi = 20, Xs = v => 90 + (v - lo) * 800 / (hi - lo), s = e.a + e.b;
-  const line = () => numLine(200, lo, hi, 1, 5, null);
-  const dot = (v, cls = 'dot') => `<circle class="${cls}" cx="${Xs(v)}" cy="200" r="12"/>` + tx(Xs(v), 160, sgn(v), 'lab s warm');
-  const arrow = () => `<g class="new"><path class="br warm" d="M${Xs(e.a)} 240 Q${(Xs(e.a) + Xs(s)) / 2} 300 ${Xs(s)} 240"/>${tx((Xs(e.a) + Xs(s)) / 2, 330, (e.b > 0 ? '+' : MINUS) + Math.abs(e.b), 'lab warm')}</g>`;
+  const sum = m => m.a + m.b, txt = m => TYPES.sum.text(m);
+  function draw(m, { sum: showSum = true, mods = m.mods } = {}) {
+    const x0 = nlX(m.a), x1 = nlX(m.a + m.b * m.go), y = NL.y;
+    let s = numLine(y, NL.lo, NL.hi, 1, 5, null) + tx(x0, y - 50, sgn(m.a), 'lab s warm');
+    if (m.go > 0 && Math.abs(x1 - x0) > 24) {
+      s += GEO.arrow(GEO.pt(x0, y + 70), GEO.pt(x1, y + 70)) + tx((x0 + x1) / 2, y + 128, (m.b > 0 ? '+' : MINUS) + Math.abs(m.b), 'lab warm');
+    }
+    if (showSum && m.go === 1) s += `<circle class="dot" cx="${nlX(sum(m))}" cy="${y}" r="12"/>` + tx(nlX(sum(m)), y - 50, sgn(sum(m)), 'lab s acc');
+    if (mods) {   // модуль — расстояние до нуля: сравниваем его с длиной сдвига
+      const z = nlX(0);
+      s += GEO.seg(GEO.pt(z, y - 100), GEO.pt(x0, y - 100), 'g-hl') + tx((z + x0) / 2, y - 122, `|${sgn(m.a)}| = ${Math.abs(m.a)}`, 'lab s warm');
+    }
+    return s;
+  }
+  // ручки: точка a и конец сдвига (он же сумма); стрелки клавиатуры — на 1
+  const handleA = m => ({ id: 'a', at: GEO.pt(nlX(m.a), NL.y), label: 'Первое слагаемое', move(m, p) { m.a = nlV(p.x); }, key(m, dx) { m.a += dx; } });
+  const handleS = m => ({ id: 's', at: GEO.pt(nlX(sum(m)), NL.y), label: 'Сумма', move(m, p) { m.b = Math.round(nlV(p.x)) - m.a; }, key(m, dx) { m.b += dx; } });
+  const rangeB = { id: 'b', type: 'range', label: 'Второе слагаемое', min: NL.lo, max: NL.hi, get: m => m.b, set(m, v) { m.b = v; } };
   return [
-    { q: `Сколько будет ${TYPES.sum.text(e)}?`, a: `Отметим ${sgn(e.a)} на координатной прямой.`,
-      note: 'Попросите записать ответ в тетрадь, не обсуждая.',
-      draw: ph => line() + (ph ? dot(e.a) : ''), rec: () => [] },
-    { q: `Куда и на сколько сдвинуться?`, a: `На ${Math.abs(e.b)} ${e.b > 0 ? 'вправо' : 'влево'}: ${TYPES.sum.text(e)} = ${sgn(s)}.`,
-      note: 'Прибавить положительное — сдвиг вправо, отрицательное — влево.',
-      draw: ph => line() + dot(e.a) + (ph ? arrow() + dot(s) : ''), rec: ph => ph ? [`${TYPES.sum.text(e)} = ${sgn(s)}`] : [] },
+    { q: m => `Сколько будет ${txt(m)}?`, a: m => `Отметим ${sgn(m.a)} на координатной прямой.`,
+      note: 'Попросите записать ответ в тетрадь, не обсуждая. Точку можно передвинуть мышью, пальцем или стрелками.',
+      live: { enter(m) { m.go = 0; m.mods = false; }, handles: (m, ph) => ph ? [handleA(m)] : [] },
+      draw: (ph, m) => ph ? draw(m, { sum: false }) : numLine(NL.y, NL.lo, NL.hi, 1, 5, null), rec: () => [] },
+    { q: 'Куда и на сколько сдвинуться?', a: m => `На ${Math.abs(m.b)} ${m.b > 0 ? 'вправо' : 'влево'}: ${txt(m)} = ${sgn(sum(m))}.`,
+      note: 'Сначала пусть класс покажет рукой, куда сдвигаться. «Показать ответ» проведёт сдвиг; «▶ Повторить опыт» — ещё раз.',
+      // опыт: точка едет от a на b; ученики заранее предсказывают, где остановится
+      live: { enter(m) { m.go = 0; m.mods = false; }, reveal() { liveTo({ go: 1 }, 1400); },
+        handles: (m, ph) => ph ? [handleA(m), handleS(m)] : [handleA(m)], controls: () => [rangeB] },
+      draw: (ph, m) => draw(m), rec: (ph, m) => ph ? [`${txt(m)} = ${sgn(sum(m))}`] : [] },
+    { q: 'Подвигайте точки. Когда сумма отрицательна?', a: 'Когда модуль отрицательного слагаемого больше.',
+      note: 'Включите «Модули». Пусть ученик у доски подберёт пример, где сумма станет нулём или сменит знак.',
+      live: { enter(m) { m.go = 1; }, handles: m => [handleA(m), handleS(m)],
+        controls: () => [rangeB, { id: 'mods', type: 'toggle', label: '| | Модули', get: m => m.mods, set(m, v) { m.mods = v; } }] },
+      draw: (ph, m) => draw(m), rec: (ph, m) => ph ? [`${txt(m)} = ${sgn(sum(m))}: модули ${Math.abs(m.a)} и ${Math.abs(m.b)}`] : [] },
     { q: 'Как сложить без прямой?', a: 'Из большего модуля вычесть меньший, знак — как у числа с большим модулем.',
       note: 'Пусть класс сам сформулирует правило по записи в тетради.',
-      draw: () => '', rec: () => [TYPES.sum.why(e)] },
+      draw: () => '', rec: (ph, m) => [TYPES.sum.why(m)] },
   ];
 }
 // превью на сайте крутит шаги до previewUntil (счёт с 0); картинка-превью — шаг poster с показанным ответом

@@ -13,7 +13,7 @@ document.addEventListener('click', e => {
   if (act === 'menu') { if (document.fullscreenElement) toggleFull(); show('start'); }
   if (act === 'next') boardNext();
   if (act === 'prev') boardPrev();
-  if (act === 'restart') boardGo(0, 0);
+  if (act === 'restart') boardRestart();
   if (act === 'numbers') { boardNumbers(true); renderBoard(); }
   if (act === 'theme') toggleTheme();
   if (act === 'full') toggleFull();
@@ -60,7 +60,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (screen === 'home' && e.key === 'Enter' && H.wait) { e.preventDefault(); homeContinue(); return; }
-  if (screen !== 'board') return;
+  if (screen !== 'board' || liveKeydown(e)) return;
   if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); boardNext(); }
   else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); boardPrev(); }
   else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') toggleFull();
@@ -91,7 +91,14 @@ window.APP = {
   Q, qeq, decStr, keyQ, parseQ, parseVal, eqRoots, generate, makeVariant, taskRnd, mulberry32, parseNums,
   STUDENT, show, get screen() { return screen; },
   board: { get steps() { return B.steps; }, get i() { return B.i; }, get phase() { return B.phase; }, get e() { return B.e; },
-    next: boardNext, prev: boardPrev, go: boardGo, numbers: random => { boardNumbers(random); renderBoard(); }, poster: boardPoster },
+    next: boardNext, prev: boardPrev, go: boardGo, numbers: random => { boardNumbers(random); renderBoard(); }, poster: boardPoster,
+    restart: boardRestart,
+    // живая доска: модель, ручки и панель текущего шага; drag(id, {x, y}) и key(id, dx, dy) — как учитель рукой и стрелками
+    get model() { return B.m; }, get snap() { return LV.snap; }, get animating() { return !!LV.anim; },
+    get handles() { return LV.handles.map(h => ({ id: h.id, label: h.label, at: { ...h.at } })); },
+    get controls() { return LV.controls.map(c => ({ id: c.id, type: c.type, label: c.label, min: c.min, max: c.max, options: c.options })); },
+    drag: liveDrag, key: liveKey, set: liveSet, reset: liveReset, again: liveAgain },
+  GEO, HAS_LIVE: typeof LIVE !== 'undefined',
   print: { draw: drawSheets, set nums(v) { printNums = v; } },
   home: { state: H, start: homeStart, check: homeCheck, hint: homeHint, next: homeContinue, collect: homeCollect,
     setCount: n => { H.eqCount = n; homeRender(); } },

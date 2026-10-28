@@ -7,8 +7,10 @@ import { join } from 'node:path';
 import { buildMaterial } from '../tools/build.mjs';
 import { loadHtml } from '../tools/load.mjs';
 import { ROOT, isSlug } from '../tools/paths.mjs';
+import { TEMPLATE, buildTemplate } from './template.mjs';
 
 const SLUGS = readdirSync(join(ROOT, 'materials')).filter(isSlug);
+// заготовка новой темы проходит тот же контракт: npm run new даёт рабочий пример
 const BAD = /undefined|NaN|\[object Object\]/;
 const plain = x => JSON.parse(JSON.stringify(x));
 
@@ -29,8 +31,8 @@ function wrong(T, t, A) {
   return null;
 }
 
-for (const slug of SLUGS) {
-  const html = buildMaterial(slug);
+for (const slug of [...SLUGS, TEMPLATE]) {
+  const html = slug === TEMPLATE ? buildTemplate() : buildMaterial(slug);
   const open = (t, query = '', options = {}) => {
     const m = loadHtml(html, { query, slug, ...options });
     t.after(m.close);
@@ -139,6 +141,51 @@ for (const slug of SLUGS) {
     }
     B.poster();
     assert.equal(B.phase, 1, 'кадр для превью — с показанным ответом');
+    assert.deepEqual(errors, []);
+  });
+
+  test(`${slug}: живая доска — ручки в чертеже, движение не ломает модель, сброс и повтор возвращают шаг`, t => {
+    const { window: w, errors } = open(t, '?mode=board');
+    const A = w.APP, B = A.board, G = A.GEO;
+    const live = B.steps.map((st, i) => st.live ? i : -1).filter(i => i >= 0);
+    if (!live.length) return t.skip('на доске нет шагов с live');
+    assert.ok(A.HAS_LIVE, 'на шагах есть live — объяви const LIVE = { model(e) { … } }');
+    const finite = x => typeof x === 'number' ? Number.isFinite(x) : x && typeof x === 'object' ? Object.values(x).every(finite) : true;
+    const valid = () => w.eval('typeof LIVE.ok !== "function" || LIVE.ok(B.m)');
+    // крайние положения: углы и края чертежа, центр, точки у краёв числовой прямой
+    const PROBES = [[0, 0], [980, 0], [0, 400], [980, 400], [490, 200], [490, 0], [490, 400], [0, 200], [980, 200], [100, 220], [880, 180]];
+    for (const i of live) for (const ph of [0, 1]) {
+      B.go(i, ph);
+      const where = `шаг ${i + 1}${ph ? ' (ответ)' : ''}`, start = JSON.stringify(plain(B.model));
+      const check = what => {
+        assert.ok(finite(plain(B.model)), `${where}, ${what}: в модели нет NaN и бесконечностей — ${JSON.stringify(plain(B.model))}`);
+        assert.ok(valid(), `${where}, ${what}: модель допустима (LIVE.ok)`);
+        for (const h of B.handles) {
+          assert.ok(h.label, `${where}: у ручки ${h.id} есть подпись`);
+          assert.ok(G.inBox(h.at, 0), `${where}, ${what}: ручка «${h.label}» внутри чертежа 980 × 400 — (${Math.round(h.at.x)}, ${Math.round(h.at.y)})`);
+        }
+        assert.doesNotMatch(w.document.getElementById('board').innerHTML, BAD, `${where}, ${what}`);
+      };
+      check('начало');
+      for (const { id } of B.handles) {
+        for (const [x, y] of PROBES) { if (B.handles.some(h => h.id === id)) { B.drag(id, { x, y }); check(`ручка ${id} → (${x}, ${y})`); } }
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { if (B.handles.some(h => h.id === id)) { B.key(id, dx, dy); check(`ручка ${id}, стрелка ${dx},${dy}`); } }
+      }
+      for (const c of B.controls) {
+        assert.ok(c.label, `${where}: у элемента ${c.id} есть подпись`);
+        const values = c.type === 'range' ? [c.min, c.max, (c.min + c.max) / 2] : c.type === 'toggle' ? [true, false, undefined]
+          : c.type === 'choice' ? c.options.map(o => o[0]) : [undefined];
+        for (const v of values) { if (B.controls.some(x => x.id === c.id)) { B.set(c.id, v); check(`${c.id} = ${v}`); } }
+      }
+      B.reset();
+      assert.equal(JSON.stringify(plain(B.model)), start, `${where}: «Сбросить» возвращает начало шага`);
+      if (ph && B.steps[i].live.reveal) {
+        B.again();
+        assert.equal(JSON.stringify(plain(B.model)), start, `${where}: «Повторить опыт» приводит к тому же итогу`);
+      }
+    }
+    B.restart();
+    assert.equal(B.i, 0);
     assert.deepEqual(errors, []);
   });
 
