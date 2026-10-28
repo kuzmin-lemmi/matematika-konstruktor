@@ -20,8 +20,9 @@ export function frozen(file, slug) {
     const rnd = A.mulberry32(type.length * 7919 + 13);
     gen[type] = Array.from({ length: 40 }, () => A.generate(type, rnd));
   }
+  const formats = Object.fromEntries(Object.keys(A.SHEETS).filter(k => !['word', 'oge'].includes(k)).map(k => [k, nums.map(n => ({ variant: A.printVariant(n, k), key: A.SHEETS[k].key([A.printVariant(n, k)]) }))]));
   m.close();
-  return plain({ word, oge, gen });
+  return plain({ word, oge, gen, formats });
 }
 
 export function ui(file, slug) {

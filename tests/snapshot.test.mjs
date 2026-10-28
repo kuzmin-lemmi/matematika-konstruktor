@@ -19,6 +19,7 @@ for (const slug of readdirSync(join(ROOT, 'materials')).filter(isSlug)) {
     const file = join(dir, `${slug}.html`);
     writeFileSync(file, buildMaterial(slug));
     const now = frozen(file, slug), was = JSON.parse(readFileSync(snap, 'utf8'));
+    assert.deepEqual(Object.keys(now.formats || {}).sort(), Object.keys(was.formats || {}).sort(), 'Новый формат требует исходного снимка');
     for (const k of Object.keys(was)) assert.deepEqual(now[k], was[k], `${k}: варианты изменились — листы со старыми номерами дадут другие ответы`);
   });
 }

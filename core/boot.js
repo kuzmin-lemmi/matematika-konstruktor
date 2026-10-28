@@ -73,6 +73,7 @@ document.addEventListener('keydown', e => {
   B.notes = store.get('notes') === '1';
   const back = siteHref();
   if (back) { $('toSite').href = back; $('toSite').hidden = false; }
+  initPrintFormats();
   if (typeof helpInit === 'function') helpInit();   // тема дорисовывает формулы в справке
   const lvl = +P.get('level');
   if (STUDENT) document.body.classList.add('student');
@@ -85,7 +86,7 @@ document.addEventListener('keydown', e => {
 
 // Для автотестов и снимка превью
 window.APP = {
-  SLUG, META, CONFIG, GEN_VERSION, TYPES, SECTIONS, KINDS_V1, WORDS_V1,
+  SHEETS, PRINT_GENERATORS, printVariant, SLUG, META, CONFIG, GEN_VERSION, TYPES, SECTIONS, KINDS_V1, WORDS_V1,
   OGE_V1: HAS_OGE ? OGE_V1 : undefined, makeVariantOGE: HAS_OGE ? makeVariantOGE : undefined,
   Q, qeq, decStr, keyQ, parseQ, parseVal, eqRoots, generate, makeVariant, taskRnd, mulberry32, parseNums,
   STUDENT, show, get screen() { return screen; },

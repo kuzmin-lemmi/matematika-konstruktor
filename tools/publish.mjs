@@ -6,13 +6,14 @@
 // Публикация: свежий main → сборка всех тем → постер (если нет) → проверка карточки → тесты конструктора
 // и сайта (npm run validate) → ветка, коммит, PR → слияние → запуск GitHub Pages → проверка живого сайта →
 // заморозка вариантов темы в конструкторе.
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { ROOT, readConfig, outFile, materialDir, isSlug } from './paths.mjs';
 import { buildMaterial } from './build.mjs';
 import { frozen } from './snapshot.mjs';
+import { publicationFiles, foreignFiles } from './publication-files.mjs';
 
 const MODE = process.argv[2];   // check | publish
 const args = process.argv.slice(3);
@@ -22,7 +23,7 @@ const slug = args.find(a => !a.startsWith('--') && !skip.has(a));
 const APPROVED = args.includes('--approved');
 const SITE_URL = 'https://matshag.ru';
 // что публикация может закоммитить на сайте — всё остальное (код сайта, правила) идёт обычным PR
-const MATERIAL_PATHS = ['public/materials/', 'public/posts/', 'src/content/items/', 'tests/', 'docs/ROADMAP.md', 'docs/STRATEGY.md'];
+const MATERIAL_PATHS = publicationFiles(slug);
 
 const log = s => console.log(s);
 const step = s => console.log(`\n▶ ${s}`);
@@ -53,30 +54,21 @@ const SITE = cfg.site;
 const title = JSON.parse(readFileSync(join(materialDir(slug), 'material.json'), 'utf8')).title;
 
 // ---------- 1. Сайт: свежий main ----------
-step('Сайт: проверяю папку и подтягиваю свежий main');
+step('Сайт: проверяю локальную рабочую папку');
 sh('git --version', SITE, { quiet: true });
 if (MODE === 'publish') sh('gh auth status', SITE, { quiet: true });
 const branch = sh('git branch --show-current', SITE, { quiet: true }).trim();
 if (MODE === 'publish' && branch !== 'main') fail(`В папке сайта ${SITE} сейчас ветка «${branch}», нужна main. Переключи: git switch main`);
-const dirty = sh('git status --porcelain', SITE, { quiet: true }).split('\n').filter(Boolean).map(l => l.slice(3).replace(/^"|"$/g, ''));
-const foreign = dirty.filter(p => !MATERIAL_PATHS.some(m => p.replace(/\\/g, '/').startsWith(m)));
-if (foreign.length) fail(`В папке сайта есть незакоммиченные изменения не про материалы — публикация их не тронет и не может продолжить:\n  ${foreign.join('\n  ')}\nЗакоммить их отдельно (обычным PR) или убери.`);
-if (branch === 'main') {   // только перемотка вперёд: свои правки материала остаются в рабочей папке
-  sh('git fetch origin', SITE, { quiet: true });
-  sh('git merge --ff-only origin/main', SITE, { quiet: true });
-  log('✓ main обновлён до origin/main');
-} else log(`· ветка «${branch}» — main не подтягиваю (проверка в рабочей ветке)`);
-const lockNow = hash(readFileSync(join(SITE, 'package-lock.json'), 'utf8'));
-const lockFile = join(SITE, 'node_modules', '.matshag-lock');
-if (!existsSync(join(SITE, 'node_modules')) || (existsSync(lockFile) ? readFileSync(lockFile, 'utf8') !== lockNow : MODE === 'publish')) {
-  step('Сайт: ставлю зависимости (npm ci)');
-  sh('npm ci', SITE, { quiet: true });
-  writeFileSync(lockFile, lockNow);
-}
+const dirty = execFileSync('git', ['status', '--porcelain', '-z'], { cwd: SITE, encoding: 'utf8' }).split('\0').filter(Boolean).map(p => p.slice(3));
+const foreign = foreignFiles(dirty, slug);
+if (MODE === 'publish' && foreign.length) fail(`В папке сайта есть незакоммиченные изменения не про материалы — публикация их не тронет и не может продолжить:\n  ${foreign.join('\n  ')}\nЗакоммить их отдельно (обычным PR) или убери.`);
+// Проверка и публикация не обновляют checkout и зависимости скрытно.
+if (!existsSync(join(SITE, 'node_modules'))) fail('Сначала установи зависимости сайта: npm ci');
+if (MODE === 'publish' && sh('git diff --cached --name-only', SITE, { quiet: true }).trim()) fail('Индекс сайта не пуст. Сначала заверши отдельный коммит.');
 
 // ---------- 2. Сборка всех тем ----------
 step('Собираю темы конструктора в сайт');
-const slugs = readdirSync(join(ROOT, 'materials')).filter(isSlug);
+const slugs = [slug];
 for (const s of slugs) { writeFileSync(outFile(cfg, s), buildMaterial(s)); log(`✓ ${s}`); }
 
 // ---------- 3. Карточка и постер ----------
@@ -91,9 +83,14 @@ if (!field('added')) problems.push('нет added: <дата публикации
 if (/ЗАМЕНИ/.test(card)) problems.push('в карточке остались пометки «ЗАМЕНИ»');
 if (field('url') !== `materials/${slug}.html`) problems.push(`url должен быть materials/${slug}.html`);
 const posterJpg = join(SITE, 'public', 'posts', `${slug}.jpg`);
-if (!existsSync(posterJpg)) {
-  log('Постера нет — снимаю (npm run posters)…');
+const posterDark = join(SITE, 'public', 'posts', `${slug}-dark.jpg`);
+const posterStamp = join(SITE, 'public', 'posts', `${slug}.source.json`);
+const sourceHash = hash(readFileSync(outFile(cfg, slug), 'utf8'));
+let posterSource; try { posterSource = JSON.parse(readFileSync(posterStamp, 'utf8')); } catch {}
+if (!existsSync(posterJpg) || !existsSync(posterDark) || posterSource?.source !== sourceHash || posterSource?.light !== hash(readFileSync(posterJpg).toString('base64')) || posterSource?.dark !== hash(readFileSync(posterDark).toString('base64'))) {
+  log('Обновляю светлый и тёмный постеры по текущему материалу…');
   sh(`npm run posters ${slug}`, SITE);
+  writeFileSync(posterStamp, JSON.stringify({ source: sourceHash, light: hash(readFileSync(posterJpg).toString('base64')), dark: hash(readFileSync(posterDark).toString('base64')) }));
 }
 if (field('poster') !== `posts/${slug}.jpg`) problems.push(`нет poster: posts/${slug}.jpg`);
 if (/^\s*-\s*\{\s*kind:\s*oge/m.test(card) === false && /^const\s+OGE_V1\b/m.test(readFileSync(join(materialDir(slug), 'topic.js'), 'utf8')))
@@ -129,7 +126,7 @@ else {
   const isNew = !sh(`git ls-tree -r --name-only origin/main -- public/materials/${slug}.html`, SITE, { quiet: true }).trim();
   const msg = isNew ? `Добавь материал «${title}» и его карточку` : `Обнови материал «${title}»`;
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
-  const br = `material/${slug}-${stamp}`;
+  const br = `codex/material/${slug}-${stamp}`;
   sh(`git switch -c ${br}`, SITE, { quiet: true });   // индекс с изменениями переходит в новую ветку
   log(changed.map(p => '  ' + p).join('\n'));
   writeFileSync(join(SITE, '.git', 'MATSHAG_MSG'), `${msg}\n\nОпубликовано конструктором материалов (npm run publish).\n`);
@@ -184,6 +181,7 @@ if (!existsSync(snap)) {
 } else log('· снимок уже есть — тест следит, чтобы варианты не менялись');
 if (existsSync(join(ROOT, '.git'))) {
   // коммитим только то, что относится к опубликованной теме: её файлы и снимок вариантов
+  if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) fail('Индекс конструктора не пуст: отдельный коммит требуется до фиксации темы.');
   sh(`git add -- "materials/${slug}" "tests/snapshots/${slug}.frozen.json"`, ROOT, { quiet: true });
   if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) {
     // В отдельной рабочей копии .git — файл; настоящий каталог сообщает сам Git.

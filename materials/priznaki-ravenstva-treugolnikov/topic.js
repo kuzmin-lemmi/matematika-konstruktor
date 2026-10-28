@@ -983,49 +983,11 @@ function extraKeyHTML(vs, kind) {
     : `<p><b>1.</b> ${TYPES.which.ok(v.sign)}</p><p><b>2.</b> Ошибка: ${v.error.kind === 'aaa' ? 'равные углы не задают размер треугольника, поэтому признака по трём углам нет.' : 'для первого признака угол должен лежать между данными сторонами; без этого условия признака нет.'} Вывод: данных недостаточно. Это не доказательство неравенства.</p><p><b>3.</b> ${ticketReasonForm(v) === 'common' ? 'BD = BD — общая сторона.' : '∠AOB = ∠COD — вертикальные углы.'}</p><p>По 1 баллу за каждый обоснованный ответ. Ошибка в № 1 — повторить признаки; в № 2 — достаточность данных; в № 3 — причины равенств.</p>`}</section>`).join('')}</div>`;
 }
 
-function helpInit() {
-  // Тематические листы используют номера, печать и переключатель ядра, сохраняя его кодовое слово.
-  const baseDraw = drawSheets;
-  drawSheets = function () {
-    const base = baseDraw();
-    const kind = $('pKind').value;
-    const extra = ['proofs', 'ticket'].includes(kind);
-    $('pExtraKey').hidden = !extra;
-    if (!extra) {
-      $('print').dataset.extraKey = 'false';
-      $('pExtraKey').textContent = 'Показать ключ';
-      $('pExtraKey').setAttribute('aria-expanded', 'false');
-      return base;
-    }
-    const vs = printNums.map(n => makeLessonSheet(n, kind));
-    const grid = $('pSpace').checked;
-    const two = kind === 'ticket' && $('pTwo').checked && !grid;
-    $('pTwo').disabled = grid || kind === 'proofs';
-    $('pAbout').textContent = kind === 'proofs'
-      ? 'Три доказательства по разным признакам и задача на порядок вершин. Один вариант на A4; ключ содержит полные доказательства.'
-      : 'Билет на 3 минуты: признак, ошибка в рассуждении, обоснование равенства. Можно печатать два варианта на A4. Ключ — по номеру.';
-    const sheet = v => kind === 'proofs' ? proofPracticeHTML(v, grid) : ticketHTML(v);
-    let html = '';
-    if (two) for (let i = 0; i < vs.length; i += 2) html += `<div class="page half compact lesson-page">${sheet(vs[i])}${vs[i + 1] ? sheet(vs[i + 1]) : ''}</div>`;
-    else html = vs.map(v => `<div class="page lesson-page${grid ? '' : ' compact'}">${sheet(v)}</div>`).join('');
-    $('pSheets').innerHTML = (vs.length ? extraKeyHTML(vs, kind) : '') + html;
-    return vs;
-  };
-  const choices = Object.entries(LESSON_KINDS);
-  $('pKind').insertAdjacentHTML('beforebegin', `<div class="row"><b>Вид листа:</b><div class="seg" role="group" aria-label="Вид листа">${choices.map(([k, text]) => `<button type="button" data-kind-set="${k}" aria-pressed="${k === 'word'}">${text}</button>`).join('')}</div></div>`);
-  const startPrint = document.querySelector('#start [data-go="print"]');
-  const box = document.createElement('div'); box.className = 'mode split';
-  box.innerHTML = `<b>🖨 Раздатка</b><span>${META.modePrint}</span><div class="kinds">${choices.map(([k, text]) => `<button type="button" data-go="print" data-kind="${k}">${text}</button>`).join('')}</div>`;
-  startPrint.replaceWith(box);
-  $('pPrintKey').insertAdjacentHTML('afterend', '<button type="button" id="pExtraKey" aria-controls="lessonKey" aria-expanded="false" hidden>Показать ключ</button>');
-  $('pExtraKey').addEventListener('click', () => {
-    const visible = $('print').dataset.extraKey !== 'true';
-    $('print').dataset.extraKey = String(visible);
-    $('pExtraKey').textContent = visible ? 'Скрыть ключ' : 'Показать ключ';
-    $('pExtraKey').setAttribute('aria-expanded', String(visible));
-  });
-  if (['proofs', 'ticket'].includes(P.get('kind'))) pendingKind = P.get('kind');
-  // Эти обработчики ядро зарегистрировало до тематической настройки; дополняем их перерисовкой.
-  $('pSpace').addEventListener('change', () => drawSheets());
-  $('pTwo').addEventListener('change', () => drawSheets());
-}
+const TOPIC_SHEETS = {
+  proofs: { label: LESSON_KINDS.proofs, generate: n => makeLessonSheet(n, 'proofs'), sheet: proofPracticeHTML,
+    key: vs => extraKeyHTML(vs, 'proofs'), two: false, previewKey: true, pageClass: 'lesson-page',
+    about: 'Три доказательства и задача на порядок вершин. Один вариант на A4; ключ содержит полные доказательства.' },
+  ticket: { label: LESSON_KINDS.ticket, generate: n => makeLessonSheet(n, 'ticket'), sheet: ticketHTML,
+    key: vs => extraKeyHTML(vs, 'ticket'), previewKey: true, pageClass: 'lesson-page',
+    about: 'Билет на 3 минуты. Можно печатать два варианта на A4. Ключ — по номеру.' },
+};

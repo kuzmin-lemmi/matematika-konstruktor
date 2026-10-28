@@ -38,7 +38,7 @@ function shuffle(rnd, arr) {
   for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; }
   return r;
 }
-const taskRnd = (n, i) => mulberry32(GEN_VERSION * 1000003 + n * 7919 + i * 104729 + 1);
+const taskRnd = (n, i, version = GEN_VERSION) => mulberry32(version * 1000003 + n * 7919 + i * 104729 + 1);
 const plural = (n, one, few, many) => {
   const m10 = n % 10, m100 = n % 100;
   return m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
