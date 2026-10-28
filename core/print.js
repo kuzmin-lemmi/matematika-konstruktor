@@ -134,6 +134,8 @@ function drawSheets() {
   let html = '';
   if (two) for (let i = 0; i < vs.length; i += 2)
     html += `<div class="page half compact ${format.pageClass || ''}">${sheet(vs[i])}${vs[i + 1] ? sheet(vs[i + 1]) : ''}</div>`;
+  else if (format.perPage) for (let i = 0; i < vs.length; i += format.perPage)
+    html += `<div class="page ${format.pageClass || ''}">${vs.slice(i, i + format.perPage).map(v => sheet(v)).join('')}</div>`;
   else html = vs.map(v => `<div class="page ${format.pageClass || ''}${space ? '' : ' compact'}">${sheet(v)}</div>`).join('');
   $('pSheets').innerHTML = (vs.length ? key(vs) : '') + html;
   fitKeys();
@@ -166,15 +168,18 @@ function printNow(what) {
 const SHEETS = {
   word: { label: 'Кодовое слово', about: PRINT.about, generate: wordVariantV1, sheet: sheetHTML, key: keyHTML },
   ...(HAS_OGE ? { oge: { label: 'Бланк ОГЭ', about: PRINT.ogeAbout, generate: ogeVariantV1, sheet: ogeSheetHTML, key: ogeKeyHTML } } : {}),
+  ...CORE_SHEETS,                                      // билет на выход, самостоятельная, домино, «найди ошибку» (core/formats.js)
   ...(typeof TOPIC_SHEETS === 'undefined' ? {} : TOPIC_SHEETS),
 };
 const PRINT_GENERATORS = { 1: Object.fromEntries(Object.entries(SHEETS).map(([k, f]) => [k, f.generate])),
   ...(typeof TOPIC_PRINT_VERSIONS === 'undefined' ? {} : TOPIC_PRINT_VERSIONS) };
+// форматы ядра зависят только от версии, а не от темы: дополняем ими и версии, которые тема описала сама
+for (const gens of Object.values(PRINT_GENERATORS)) for (const [k, f] of Object.entries(CORE_SHEETS)) gens[k] = gens[k] || f.generate;
 function printVariant(num, kind = 'word', version = GEN_VERSION) {
   if (typeof num === 'string' && num.includes('-')) { const parts = num.split('-'); version = +parts[0]; num = +parts[1]; }
   const gen = PRINT_GENERATORS[version]?.[kind];
   if (!gen) throw new Error('Нет генератора формата ' + kind + ' версии ' + version);
-  return gen(num);
+  return gen(num, version);
 }
 function makeVariant(num, version = GEN_VERSION) { return printVariant(num, 'word', version); }
 function makeVariantOGE(num, version = GEN_VERSION) { return printVariant(num, 'oge', version); }

@@ -23,7 +23,7 @@
 const LV = { entered: false, snap: null, anim: null, drag: null, instant: false, handles: [], controls: [], ctlKey: '' };
 const liveCopy = m => JSON.parse(JSON.stringify(m ?? {}));
 const liveOf = () => B.steps[B.i]?.live || null;
-const liveModel = e => typeof LIVE !== 'undefined' ? LIVE.model(e) : {};
+const liveModel = e => typeof LIVE !== 'undefined' && B.show === 'main' ? LIVE.model(e) : {};
 function liveFix(m) { if (typeof LIVE !== 'undefined' && LIVE.fix) LIVE.fix(m); }
 // изменение модели учителем: после fix проверяем ok, вырожденное положение откатываем
 function liveChange(fn) {

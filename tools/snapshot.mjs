@@ -20,9 +20,14 @@ export function frozen(file, slug) {
     const rnd = A.mulberry32(type.length * 7919 + 13);
     gen[type] = Array.from({ length: 40 }, () => A.generate(type, rnd));
   }
-  const formats = Object.fromEntries(Object.keys(A.SHEETS).filter(k => !['word', 'oge'].includes(k)).map(k => [k, nums.map(n => ({ variant: A.printVariant(n, k), key: A.SHEETS[k].key([A.printVariant(n, k)]) }))]));
+  // форматы темы (TOPIC_SHEETS) замораживаются всегда; форматы ядра (билет, самостоятельная, домино, «найди ошибку») —
+  // в ключе core: тест сравнивает его, только если он есть в снимке (старые темы сняты до появления этих форматов)
+  const fmts = keys => Object.fromEntries(keys.map(k => [k, nums.map(n => ({ variant: A.printVariant(n, k), key: A.SHEETS[k].key([A.printVariant(n, k)]) }))]));
+  const isCore = k => A.CORE_SHEETS[k] && A.SHEETS[k] === A.CORE_SHEETS[k];
+  const formats = fmts(Object.keys(A.SHEETS).filter(k => !['word', 'oge'].includes(k) && !isCore(k)));
+  const core = fmts(Object.keys(A.SHEETS).filter(isCore));
   m.close();
-  return plain({ word, oge, gen, formats });
+  return plain({ word, oge, gen, formats, core });
 }
 
 export function ui(file, slug) {

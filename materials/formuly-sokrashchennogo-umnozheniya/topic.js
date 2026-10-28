@@ -67,6 +67,7 @@ const bad = (cat, msg) => ({ cat, msg });
 const TYPES = {
   expand: {   // раскрыть скобки: квадрат суммы, квадрат разности, произведение разности и суммы
     input: 'poly', title: 'Раскрытие скобок',
+    statement: (t, html) => `${TYPES.expand.text(t)} = ${html}`,
     forms: ['sqsum', 'sqdif', 'diff'],
     gen: (rnd, form) => genAB(rnd, form || pick(rnd, TYPES.expand.forms), 4, 3),
     terms: t => {
@@ -177,7 +178,7 @@ const TYPES = {
     wrongInput: t => ({ k: TYPES.fill.want(t).k + 3, m: TYPES.fill.want(t).m }),
   },
   smart: {   // вычисление удобным способом: a² − b² = (a − b)(a + b)
-    input: 'num', title: 'Удобным способом',
+    input: 'num', title: 'Удобным способом', oral: true,
     gen: (rnd, form) => {
       form = form || pick(rnd, ['int', 'dec']);
       if (form === 'dec') return { form, k: int(rnd, 11, 99), j: int(rnd, 1, 9) };
@@ -211,7 +212,7 @@ const TYPES = {
     },
   },
   value: {   // значение выражения a² − b² при данных значениях букв
-    input: 'num', title: 'Значение выражения',
+    input: 'num', title: 'Значение выражения', oral: true,
     gen: rnd => ({ r: Q(int(rnd, 12, 40), 10), s: Q(int(rnd, 1, 11), 10) }),
     text: () => `${LA}${PW(2)} ${MINUS} ${LB}${PW(2)}`,
     ask: t => `Найдите значение выражения ${TYPES.value.text(t)}<br>при ${LA} = ${decStr(t.r)}, ${LB} = ${decStr(t.s)}.`,
@@ -242,6 +243,7 @@ const TYPES = {
   },
   fact: {   // разложение на множители: выбрать верный вариант
     input: 'pick', title: 'Разложение на множители',
+    statement: (t, html) => `${TYPES.fact.text(t)} = ${html}`,
     forms: ['diff', 'sqsum', 'sqdif'],
     gen: (rnd, form) => {
       const t = genAB(rnd, form || pick(rnd, TYPES.fact.forms), 3, 3);
@@ -291,6 +293,7 @@ const TYPES = {
   },
   cube: {   // куб суммы и разности: выбрать верное раскрытие
     input: 'pick', title: 'Куб суммы и разности',
+    statement: (t, html) => `${TYPES.cube.text(t)} = ${html}`,
     gen: rnd => {
       const t = genAB(rnd, 'cube', 3, 2);
       t.sign = rnd() < 0.5 ? 1 : -1;
@@ -335,6 +338,47 @@ const TYPES = {
   },
 };
 
+// ================= Решения с одной ошибкой: «найди ошибку» =================
+// mistake(t, rnd) → { lines: строки решения, at: номер неверной строки (с 0), fix: верная строка, why: в чём ошибка }
+// неверный коэффициент квадрата: не возвели в квадрат (для k = 1 это совпало бы с верным — берём 2)
+const errLines = (lines, at, bad, why) => ({ lines: lines.map((l, i) => (i === at ? bad : l)), at, fix: lines[at], why });
+TYPES.expand.mistake = (t, rnd) => {
+  const sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B), s = sgn(t.sign), a = mono(t.A), b = mono(t.B), wrongK = t.A.k === 1 ? 2 : t.A.k;
+  if (t.form === 'diff') {
+    const L = [`${TYPES.expand.text(t)} = (${a})${PW(2)} ${MINUS} (${b})${PW(2)}`, `= ${mono(sa)} ${MINUS} ${mono(sb)}`];
+    return pick(rnd, [
+      () => errLines(L, 0, `${TYPES.expand.text(t)} = (${a})${PW(2)} + (${b})${PW(2)}`, 'В разности квадратов между квадратами стоит «−», а не «+».'),
+      () => errLines(L, 0, `${TYPES.expand.text(t)} = (${a})${PW(2)} ${MINUS} 2 · ${a} · ${b} + (${b})${PW(2)}`, 'Это не квадрат разности: у произведения суммы и разности среднего члена нет, он сокращается.'),
+      () => errLines(L, 1, `= ${mono({ k: wrongK, m: sa.m })} ${MINUS} ${mono(sb)}`, `В квадрат нужно возвести и коэффициент: (${a})${PW(2)} = ${mono(sa)}, а не ${mono({ k: wrongK, m: sa.m })}.`),
+    ])();
+  }
+  const L = [`${TYPES.expand.text(t)} = (${a})${PW(2)} ${s} 2 · ${a} · ${b} + (${b})${PW(2)}`, `= ${mono(sa)} ${s} ${mono(cr)} + ${mono(sb)}`];
+  return pick(rnd, [
+    () => errLines(L, 0, `${TYPES.expand.text(t)} = (${a})${PW(2)} + (${b})${PW(2)}`, 'Потерян средний член: у квадрата суммы или разности три слагаемых, среди них удвоенное произведение 2ab.'),
+    () => errLines(L, 0, `${TYPES.expand.text(t)} = (${a})${PW(2)} ${sgn(-t.sign)} 2 · ${a} · ${b} + (${b})${PW(2)}`, `Знак среднего члена должен совпадать со знаком в скобке: ${s}.`),
+    () => errLines(L, 1, `= ${mono({ k: wrongK, m: sa.m })} ${s} ${mono(cr)} + ${mono(sb)}`, `В квадрат нужно возвести и коэффициент: (${a})${PW(2)} = ${mono(sa)}.`),
+    () => errLines(L, 1, `= ${mono(sa)} ${s} ${mono({ k: t.A.k * t.B.k, m: cr.m })} + ${mono(sb)}`, `Забыли двойку: удвоенное произведение 2 · ${a} · ${b} = ${mono(cr)}.`),
+  ])();
+};
+TYPES.smart.mistake = (t, rnd) => {
+  const E = TYPES.smart, [x, y] = E.pair(t), lo = qsub(x, y), hi = qadd(x, y), ans = E.ans(t);
+  const L = [`${E.text(t)} = (${E.dec(x)} ${MINUS} ${E.dec(y)}) · (${E.dec(x)} + ${E.dec(y)})`, `= ${E.dec(lo)} · ${E.dec(hi)}`, `= ${htmlQ(ans)}`];
+  return pick(rnd, [
+    () => errLines(L, 0, `${E.text(t)} = (${E.dec(x)} ${MINUS} ${E.dec(y)})${PW(2)}`, 'Разность квадратов — это не квадрат разности: a² − b² = (a − b)(a + b).'),
+    () => errLines(L, 1, `= ${E.dec(lo)} · ${E.dec(qadd(hi, Q(1)))}`, `Сумма ${E.dec(x)} + ${E.dec(y)} равна ${E.dec(hi)}.`),
+    () => errLines(L, 2, `= ${htmlQ(qadd(ans, Q(10)))}`, `Ошибка в умножении: ${E.dec(lo)} · ${E.dec(hi)} = ${htmlQ(ans)}.`),
+  ])();
+};
+TYPES.value.mistake = (t, rnd) => {
+  const E = TYPES.value, lo = qsub(t.r, t.s), hi = qadd(t.r, t.s), ans = E.ans(t), d = decStr;
+  const L = [`${E.text(t)} = (${LA} ${MINUS} ${LB})(${LA} + ${LB}) = (${d(t.r)} ${MINUS} ${d(t.s)}) · (${d(t.r)} + ${d(t.s)})`, `= ${d(lo)} · ${d(hi)}`, `= ${d(ans)}`];
+  return pick(rnd, [
+    () => errLines(L, 0, `${E.text(t)} = (${LA} ${MINUS} ${LB})${PW(2)} = (${d(t.r)} ${MINUS} ${d(t.s)})${PW(2)}`, 'Разность квадратов — это не квадрат разности: a² − b² = (a − b)(a + b).'),
+    () => errLines(L, 1, `= ${d(qadd(lo, Q(1, 10)))} · ${d(hi)}`, `${d(t.r)} ${MINUS} ${d(t.s)} = ${d(lo)}.`),
+    () => errLines(L, 2, `= ${d(qadd(ans, Q(1)))}`, `Ошибка в умножении: ${d(lo)} · ${d(hi)} = ${d(ans)}.`),
+  ])();
+};
+
 // ================= Ошибки: блок «Над чем поработать» =================
 const CATS = {
   middle: ['Забыт средний член', '(a ± b)² — это три слагаемых: a² ± 2ab + b². Средний член 2ab теряется чаще всего.'],
@@ -361,6 +405,14 @@ const SECTIONS = [
 const KINDS_V1 = [['expand', 'sqsum'], ['expand', 'sqdif'], ['expand', 'diff'], ['fill', 'sqsum'], ['fill', 'sqdif'],
   ['smart', 'int'], ['smart', 'dec'], ['value', null], ['fact', 'diff']];
 const WORDS_V1 = ['ДЕЛИМОСТЬ', 'МНОЖИТЕЛЬ', 'ПРОДУКТИВ'];
+
+// Билет на выход и самостоятельная (форматы ядра): состав можно менять, пока на них нет напечатанных листов
+const EXIT_V1 = [['expand', 'sqsum'], ['fill', 'sqdif'], ['smart', 'int']];
+const TEST_V1 = {
+  parts: [['expand', 'sqsum'], ['expand', 'diff'], ['fill', 'sqdif'], ['smart', 'int'], ['value'], ['fact', ['diff', 'sqsum', 'sqdif']]],
+  points: [1, 1, 1, 1, 1, 2],
+  grades: { 5: 6, 4: 5, 3: 3 },
+};
 
 const PRINT = {
   instr: 'Выполни задание и найди свой ответ в таблице букв. Впиши букву в клеточку под номером задания, и получится слово. '
