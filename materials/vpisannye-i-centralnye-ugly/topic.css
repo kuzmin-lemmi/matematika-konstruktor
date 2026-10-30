@@ -1,0 +1,29 @@
+/* Дуга, на которую опирается угол, — цветом центрального угла: они равны */
+svg .va-arc { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; opacity: .75; }
+/* Чертежи задач (viewBox 400 × 300) */
+.va-task { display: block; width: 100%; max-width: 380px; max-height: 280px; margin: 5px auto; }
+svg .va-c { fill: none; stroke: var(--ink); stroke-width: 3; }
+svg .va-l { fill: none; stroke: var(--ink); stroke-width: 3.5; stroke-linecap: round; }
+svg .va-m { fill: none; stroke: var(--ink); stroke-width: 2; }
+svg .va-arc-t { fill: none; stroke: var(--ink); stroke-width: 6; stroke-linecap: round; }
+svg .va-p { fill: var(--ink); }
+svg .va-v, svg .va-n { paint-order: stroke; stroke: var(--bg); stroke-width: 6px; stroke-linejoin: round; }
+svg .va-v { font-size: 34px; font-weight: 700; font-style: italic; }
+svg .va-n { font-size: 32px; font-weight: 800; }
+svg .va-n.q { fill: var(--b); }
+#home .va-q { font-size: clamp(20px, 3vw, 27px); line-height: 1.4; margin: 10px 0; }
+/* Лист: три задачи в ряд, чертежи мелкие */
+.sheet .tasks { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3mm; }
+.sheet .task p { margin: 1mm 0; font-size: 12pt; line-height: 1.25; }
+.sheet .va-task { height: 28mm; max-height: 28mm; margin: 0 auto 1mm; }
+.sheet .cells { height: 10mm; }
+.sheet svg { --ink: #000; --bg: #fff; --b: #000; }
+/* Два варианта на листе: четыре задачи в ряд, номер поверх чертежа, клеточки — в таблице ответов */
+.half .tasks { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.half .task { position: relative; }
+.half .task .no { position: absolute; left: 0; top: 0; }
+.half .va-task { height: 20mm; max-height: 20mm; margin: 0 auto; }
+.half .task p { font-size: 10pt; line-height: 1.1; margin: .5mm 0; }
+.half .cells { display: none; }
+/* С местом для решения: четыре задачи в ряд, чтобы лист остался одностраничным */
+.page:not(.compact) .sheet .tasks { grid-template-columns: repeat(4, minmax(0, 1fr)); }
