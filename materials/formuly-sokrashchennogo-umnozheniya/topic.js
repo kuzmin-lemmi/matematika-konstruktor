@@ -116,7 +116,8 @@ const TYPES = {
     traps(t) {
       const sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B);
       const out = [[sa, sb], t.form === 'sqdif' ? [sa, neg(sb)] : [sa, neg(cr), sb]];   // забыли 2ab; перепутали знак
-      return out.slice(0, CONFIG.print.traps).map(xs => ({ key: polyKey(xs), html: poly(xs) }));
+      const cats = { sqsum: ['middle', 'sign'], sqdif: ['middle', 'diff'], diff: ['diff', 'diff'] }[t.form];   // для расшифровки ловушек в ключе
+      return out.slice(0, CONFIG.print.traps).map((xs, i) => ({ key: polyKey(xs), html: poly(xs), cat: cats[i] }));
     },
     hints(t) {
       const sa = sqOf(t.A), sb = sqOf(t.B), cr = crOf(t.A, t.B);
@@ -168,7 +169,7 @@ const TYPES = {
     keyHTML: t => mono(TYPES.fill.want(t)),
     traps(t) {
       const w = TYPES.fill.want(t), f = TYPES.fill.factor(t);
-      return [{ k: w.k / f, m: w.m }, { k: w.k, m: w.m + 1 }].slice(0, CONFIG.print.traps).map(x => ({ key: monoKey(x), html: mono(x) }));
+      return [{ k: w.k / f, m: w.m, cat: 'coef' }, { k: w.k, m: w.m + 1, cat: 'power' }].slice(0, CONFIG.print.traps).map(x => ({ key: monoKey(x), html: mono(x), cat: x.cat }));
     },
     hints(t) {
       if (t.form === 'cube') return [FCUBE(t.sign), `Пропущен член 3${LA}${PW(2)}${LB}: коэффициент 3 · ${t.A.k}${PW(2)} · ${t.B.k}, степень ${2 * t.A.m} + ${t.B.m}.`];
@@ -374,7 +375,7 @@ TYPES.value.mistake = (t, rnd) => {
   const L = [`${E.text(t)} = (${LA} ${MINUS} ${LB})(${LA} + ${LB}) = (${d(t.r)} ${MINUS} ${d(t.s)}) · (${d(t.r)} + ${d(t.s)})`, `= ${d(lo)} · ${d(hi)}`, `= ${d(ans)}`];
   return pick(rnd, [
     () => errLines(L, 0, `${E.text(t)} = (${LA} ${MINUS} ${LB})${PW(2)} = (${d(t.r)} ${MINUS} ${d(t.s)})${PW(2)}`, 'Разность квадратов — это не квадрат разности: a² − b² = (a − b)(a + b).'),
-    () => errLines(L, 1, `= ${d(qadd(lo, Q(1, 10)))} · ${d(hi)}`, `${d(t.r)} ${MINUS} ${d(t.s)} = ${d(lo)}.`),
+    () => errLines(L, 1, `= ${d(qadd(lo, Q(1, 10)))} · ${d(hi)}`, `Ошибка в вычитании: ${d(t.r)} ${MINUS} ${d(t.s)} = ${d(lo)}.`),
     () => errLines(L, 2, `= ${d(qadd(ans, Q(1)))}`, `Ошибка в умножении: ${d(lo)} · ${d(hi)} = ${d(ans)}.`),
   ])();
 };

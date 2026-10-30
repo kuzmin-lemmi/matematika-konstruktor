@@ -91,7 +91,7 @@ const TYPES = {
     hints: t => ['Сначала найди прямой путь, затем вычти его из пути через угол.', `Прямой путь ${t.c} м; прежний путь ${t.a} + ${t.b} м.`], traps: t => numTraps([t.c, t.a + t.b], t.a + t.b - t.c),
   },
   apply: {
-    input: 'choice', title: 'Условие применения', options: [['yes', 'Да'], ['no', 'Нет'], ['unknown', 'Недостаточно данных']],
+    input: 'choice', title: 'Условие применения', oral: true, options: [['yes', 'Да'], ['no', 'Нет'], ['unknown', 'Недостаточно данных']],
     gen: rnd => ({ form: pick(rnd, ['right', 'oblique', 'unknown']), a: int(rnd, 2, 10), b: int(rnd, 2, 10) }), text: () => 'Верно ли AB² = AC² + BC²?',
     ask: t => `<p class="p-question">${TYPES.apply.given(t)} AC = ${t.a}, BC = ${t.b}. Можно ли утверждать AB² = AC² + BC²?</p>`, sheet: t => `<p>${TYPES.apply.given(t)} Верно ли AB² = AC² + BC²? Да / нет / недостаточно.</p>`,
     given: t => ({ right: '∠C = 90°.', oblique: '∠C = 60°.', unknown: 'Угол C не указан.' })[t.form], ans: t => ({ right: 'yes', oblique: 'no', unknown: 'unknown' })[t.form],

@@ -308,7 +308,7 @@ body.student [data-act="menu"],body.student #hLinks{display:none !important}
   #print .wrap{max-width:none;padding:0}
   .sheets{display:block;overflow:visible}
   .page{box-shadow:none;margin:0;break-after:page;min-height:auto;height:297mm;overflow:hidden}
-  .page.key{height:auto;overflow:visible}
+  .page.key,.page.flow{height:auto;overflow:visible}
   table.key tr{break-inside:avoid}
   .page:last-child{break-after:auto}
   body.print-key .page:not(.key){display:none}
@@ -350,3 +350,47 @@ ol.elines li{margin:.6mm 0}
 .bbar select{font:inherit;font-size:16px;padding:.25em .4em;border:2px solid var(--line);border-radius:10px;background:var(--surface);color:inherit}
 #bTimer{min-width:5.5em;font-variant-numeric:tabular-nums}
 #board.preview .bbar select,#board.preview #bTimer{display:none}
+/* ---- расшифровка ловушек в ключе, тест с выбором, взаимопроверка, лесенка подсказок (core/print.js, core/formats.js) ---- */
+table.key .trp{display:block;font-size:8pt;color:#444;white-space:nowrap}
+table.key .trp sup{font-size:6.5pt}
+.diag{font-size:9.5pt;line-height:1.3;margin-top:2mm}
+.diag ol{margin:1mm 0 0;padding-left:6mm;columns:2;column-gap:8mm}
+.opts{display:flex;flex-wrap:wrap;gap:1mm 5mm;margin-top:1mm;font-size:11.5pt}
+.opts span{white-space:nowrap}
+table.bubbles{border-collapse:collapse;font-size:10pt;margin-top:2mm;break-inside:avoid}
+table.bubbles th,table.bubbles td{border:1px solid #000;width:7mm;height:6mm;padding:0;text-align:center}
+table.bubbles tr:first-child th:first-child{width:auto;padding:0 2mm}
+table.bubbles td.off{background:repeating-linear-gradient(45deg,#fff 0 2px,#999 2px 3px)}
+table.bubbles.stencil td.on{background:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.choice-test .sheet{display:flex;flex-direction:column}
+.choice-test table.bubbles:not(.stencil){display:inline-table;transform-origin:left top}
+.choice-test .sheet > table.bubbles{align-self:flex-start}
+.stencils{display:flex;flex-wrap:wrap;gap:4mm 6mm}
+.pairs .peer{margin-top:auto;border-top:1px dashed #555;padding-top:1.5mm;font-size:9.5pt;line-height:1.3}
+.pairs .peer span{white-space:nowrap;margin-right:2.5mm}
+.pairs .chk,.ladder .chk{font-size:9pt;color:#555;margin-left:3mm;white-space:nowrap}
+.pairs .sheet{display:flex;flex-direction:column}
+.pairs .otv{font-size:10.5pt;margin-top:.5mm}
+.lrows{display:grid;gap:0}
+.lhead,.lrow{display:grid;grid-template-columns:1fr 26% 26%}
+.lhead span{font-size:9pt;color:#555;padding:0 2mm}
+.lrow{border-top:1px solid #bbb;break-inside:avoid}
+.lrow > div{padding:2mm}
+.lrow .hint{border-left:1.5px dashed #555;font-size:10pt;line-height:1.3;display:flex;flex-direction:column;justify-content:space-between;gap:2mm}
+.lhead span + span{border-left:1.5px dashed #555}
+.ladder .lrow .task{font-size:12pt}
+.ladder .otv{margin-top:2mm;font-size:11pt}
+/* билет на выход — четверть листа: чертежи задач уменьшаются */
+.exit-ticket svg{max-height:34mm;width:auto;max-width:100%;display:block;margin:1mm auto}
+/* задача с чертежом: чертёж слева, условие и ответ справа — три задачи помещаются на четверть листа */
+.exit-ticket .task:has(> svg){display:grid;grid-template-columns:36mm 1fr;column-gap:2.5mm;align-items:start}
+.exit-ticket .task:has(> svg) > svg{grid-column:1;grid-row:1 / span 4;max-height:28mm;margin:0}
+.exit-ticket .task:has(> svg) > :not(svg){grid-column:2}
+.exit-ticket .task:has(> svg) p{margin:0;font-size:11pt;line-height:1.25}
+.exit-ticket .cells{display:none}
+/* домино: чертёж задания помещается в половину костяшки */
+.tile .r{flex-direction:column;gap:.5mm;font-size:10.5pt;line-height:1.2}
+.tile .r svg{max-height:24mm;width:auto;max-width:100%}
+.tile .r p{margin:0}
+.tile{break-inside:avoid}
+#board p.tf{font-size:clamp(22px,3.4vw,38px);font-weight:700;margin:8px 0}

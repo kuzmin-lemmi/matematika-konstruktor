@@ -95,7 +95,7 @@ const TYPES = {
     hints: () => ['Посмотри, где вершина угла: в центре, на окружности или в другом месте.', 'Центральный — вершина в точке O. Вписанный — вершина на самой окружности.'],
   },
   ins: {
-    input: 'num', title: 'Вписанный по центральному',
+    input: 'num', title: 'Вписанный по центральному', oral: true,
     gen: rnd => ({ x: int(rnd, 15, 80), rot: vaRot(rnd), j: pick(rnd, [-1, 1]) * int(rnd, 12, 32) }),
     fig: t => vaTaskSVG({ rot: t.rot, pts: { A: 270 - t.x, B: 270 + t.x, C: 90 + t.j }, segs: ['OA', 'OB', 'CA', 'CB'], center: true,
       angles: [['O', 'A', 'B', 2 * t.x + '°'], ['C', 'A', 'B', '?']] }, 'Окружность с центром O, углы AOB и ACB'),
@@ -112,7 +112,7 @@ const TYPES = {
     hints: t => ['Какой из углов центральный, а какой вписанный? Опираются ли они на одну дугу?', `Вписанный угол равен половине центрального: ${2 * t.x}° : 2.`],
   },
   cen: {
-    input: 'num', title: 'Центральный по вписанному',
+    input: 'num', title: 'Центральный по вписанному', oral: true,
     gen: rnd => ({ x: int(rnd, 15, 85), rot: vaRot(rnd), j: pick(rnd, [-1, 1]) * int(rnd, 12, 32) }),
     fig: t => vaTaskSVG({ rot: t.rot, pts: { A: 270 - t.x, B: 270 + t.x, C: 90 + t.j }, segs: ['OA', 'OB', 'CA', 'CB'], center: true,
       angles: [['O', 'A', 'B', '?'], ['C', 'A', 'B', t.x + '°']] }, 'Окружность с центром O, углы ACB и AOB'),
@@ -129,7 +129,7 @@ const TYPES = {
     hints: () => ['Оба угла опираются на дугу AB. Какой из них больше?', 'Центральный угол в 2 раза больше вписанного.'],
   },
   arc: {
-    input: 'num', title: 'Угол и дуга',
+    input: 'num', title: 'Угол и дуга', oral: true,
     // дуга AB (против часовой от A к B), на которую опирается ∠ACB; C — на другой дуге. Дуга может быть больше 180°
     gen: (rnd, form) => ({ form: form || pick(rnd, ['toIns', 'toArc']), arc: int(rnd, 4, 26) * 10, rot: vaRot(rnd), j: int(rnd, -15, 15) }),
     bad: t => t.arc === 180,
@@ -153,7 +153,7 @@ const TYPES = {
     hints: t => ['Найди дугу, которая лежит внутри угла ACB, — на неё он опирается.', t.form === 'toIns' ? `Вписанный угол — половина дуги: ${t.arc}° : 2.` : `Дуга вдвое больше вписанного угла: 2 · ${t.arc / 2}°.`],
   },
   same: {
-    input: 'num', title: 'Углы на одну дугу',
+    input: 'num', title: 'Углы на одну дугу', oral: true,
     gen: rnd => ({ x: int(rnd, 20, 80), rot: vaRot(rnd), j: int(rnd, 25, 45) }),
     fig: t => vaTaskSVG({ rot: t.rot, pts: { A: 270 - t.x, B: 270 + t.x, C: 90 + t.j, D: 90 - t.j }, segs: ['CA', 'CB', 'DA', 'DB'],
       angles: [['C', 'A', 'B', t.x + '°'], ['D', 'A', 'B', '?', 2]] }, 'Вписанные углы ACB и ADB'),
@@ -169,7 +169,7 @@ const TYPES = {
     hints: () => ['Оба угла вписанные. На какие дуги они опираются?', 'Вписанные углы, опирающиеся на одну дугу, равны.'],
   },
   opp: {
-    input: 'num', title: 'Вершины по разные стороны хорды',
+    input: 'num', title: 'Вершины по разные стороны хорды', oral: true,
     gen: rnd => ({ x: int(rnd, 25, 80), rot: vaRot(rnd), j: int(rnd, -25, 25), k: int(rnd, -6, 6) }),
     fig: t => vaTaskSVG({ rot: t.rot, pts: { A: 270 - t.x, B: 270 + t.x, C: 90 + t.j, D: 270 + t.k * t.x / 20 }, segs: ['CA', 'CB', 'DA', 'DB'],
       angles: [['C', 'A', 'B', t.x + '°'], ['D', 'A', 'B', '?', 2]] }, 'Вписанные углы ACB и ADB по разные стороны от AB'),

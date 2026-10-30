@@ -1,4 +1,5 @@
-// Форматы ядра для каждой темы: печатные (билет на выход, самостоятельная, домино, «найди ошибку»)
+// Форматы ядра для каждой темы: печатные (билет на выход, самостоятельная, тест с выбором, взаимопроверка,
+// лесенка подсказок, домино, «найди ошибку»), расшифровка ловушек в ключе кодового слова
 // и виды показа на доске (разминка, диктант, «верно — неверно», «найди ошибку»).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,8 +19,9 @@ for (const slug of SLUGS) {
 
   test(`${slug}: печатные форматы ядра — один номер, один лист; ключ и разметка без ошибок`, t => {
     const { window: w, errors } = open(t, '?mode=print');
-    const A = w.APP, kinds = Object.keys(A.CORE_SHEETS);
-    assert.ok(kinds.includes('exit') && kinds.includes('test'), 'билет и самостоятельная есть у каждой темы');
+    const A = w.APP, kinds = Object.keys(A.CORE_SHEETS).filter(k => A.SHEETS[k] === A.CORE_SHEETS[k]);
+    for (const k of ['test', 'choice', 'pair', 'ladder']) assert.ok(kinds.includes(k), `${k} есть у каждой темы`);
+    assert.ok(Object.values(A.SHEETS).filter(f => f.label === 'Билет на выход').length === 1, 'ровно один билет на выход: свой у темы или ядра');
     for (const kind of kinds) {
       for (let i = 0; i < 30; i++) {
         const n = 1000 + i * 293, v = A.printVariant(n, kind);
@@ -44,9 +46,11 @@ for (const slug of SLUGS) {
   test(`${slug}: билет — четыре на лист; самостоятельная — баллы и шкала; домино — кольцо`, t => {
     const { window: w } = open(t, '?mode=print&kind=exit');
     const A = w.APP, d = w.document;
-    A.print.nums = [1111, 2222, 3333, 4444, 5555]; A.print.draw();
-    assert.equal(d.querySelectorAll('.page.exit-tickets').length, 2, '5 билетов — 2 листа по 4');
-    assert.equal(d.querySelectorAll('.exit-ticket').length, 5);
+    if (A.SHEETS.exit === A.CORE_SHEETS.exit) {
+      A.print.nums = [1111, 2222, 3333, 4444, 5555]; A.print.draw();
+      assert.equal(d.querySelectorAll('.page.exit-tickets').length, 2, '5 билетов — 2 листа по 4');
+      assert.equal(d.querySelectorAll('.exit-ticket').length, 5);
+    }
     const test_ = A.printVariant(1234, 'test');
     assert.equal(test_.points.length, test_.tasks.length, 'баллы за каждое задание');
     assert.match(A.SHEETS.test.key([test_]), /Оценка «5» — от \d+ баллов/);
@@ -111,5 +115,68 @@ for (const slug of SLUGS) {
     for (const [name, S] of Object.entries(w.APP.SHOWS)) if (S.available()) B.useShow(name);
     B.useShow('main');
     assert.equal(JSON.stringify(B.steps.map(s => [typeof s.q === 'function' ? 'f' : s.q, typeof s.a === 'function' ? 'f' : s.a])), before);
+  });
+
+  test(`${slug}: ключ кодового слова — буквы-ловушки с расшифровкой ошибок`, t => {
+    const { window: w } = open(t, '?mode=print');
+    const A = w.APP;
+    for (let i = 0; i < 30; i++) {
+      const v = A.makeVariant(1000 + i * 293), html = A.SHEETS.word.key([v]), box = w.document.createElement('div');
+      box.innerHTML = html;
+      const legend = [...box.querySelectorAll('.diag li')].map(li => li.textContent);
+      const names = Object.values(A.CATS || w.eval('CATS')).map(c => c[0]);
+      for (const name of legend) assert.ok(names.includes(name), `расшифровка — название ошибки из CATS: ${name}`);
+      const cells = [...box.querySelectorAll('tbody tr, tr')].pop().querySelectorAll('td');
+      for (const sup of box.querySelectorAll('.trp sup')) assert.ok(+sup.textContent >= 1 && +sup.textContent <= legend.length, 'номер ошибки есть в расшифровке');
+      for (const trp of box.querySelectorAll('.trp')) for (const ch of trp.textContent.replace(/[0-9\s]/g, '')) assert.ok(v.bank.some(b => b.letter === ch), `буква ${ch} есть в таблице букв`);
+      assert.ok(cells.length >= v.tasks.length);
+    }
+  });
+
+  test(`${slug}: тест с выбором — один верный ответ из 2–4 различных, трафарет совпадает с ключом`, t => {
+    const { window: w } = open(t, '?mode=print');
+    const A = w.APP;
+    for (let i = 0; i < 30; i++) {
+      const v = A.printVariant(1000 + i * 293, 'choice');
+      v.options.forEach((o, k) => {
+        assert.ok(o.length >= 2 && o.length <= 4, 'от двух до четырёх вариантов ответа');
+        assert.equal(o.filter(x => x.ok).length, 1, 'ровно один верный');
+        assert.equal(new Set(o.map(x => x.html)).size, o.length, 'варианты ответа различны');
+        assert.equal('АБВГ'[o.findIndex(x => x.ok)], v.answers[k]);
+        const T = A.TYPES[v.tasks[k].type];
+        if (T.input !== 'choice') assert.equal(o.find(x => x.ok).html, T.keyHTML(v.tasks[k]), 'верный вариант — ответ задания');
+      });
+      const box = w.document.createElement('div'); box.innerHTML = A.SHEETS.choice.key([v]);
+      const rows = [...box.querySelectorAll('table.stencil tr')].slice(1);
+      rows.forEach((r, k) => assert.equal('АБВГ'[[...r.querySelectorAll('td')].findIndex(td => td.classList.contains('on'))], v.answers[k], 'трафарет'));
+    }
+  });
+
+  test(`${slug}: взаимопроверка — листы А и Б разные, у каждого внизу ответы соседа`, t => {
+    const { window: w } = open(t, '?mode=print');
+    const A = w.APP;
+    for (let i = 0; i < 30; i++) {
+      const v = A.printVariant(1000 + i * 293, 'pair');
+      assert.notEqual(JSON.stringify(v['А']), JSON.stringify(v['Б']), 'листы А и Б различны');
+      const box = w.document.createElement('div'); box.innerHTML = A.SHEETS.pair.sheet(v);
+      const [a, b] = box.querySelectorAll('.sheet');
+      assert.ok(a && b, 'на странице два листа');
+      const keys = s => v[s].map(t => A.TYPES[t.type].keyHTML(t));
+      const peer = el => el.querySelector('.peer').innerHTML;
+      keys('Б').forEach((k, j) => assert.ok(peer(a).includes(`${j + 1}) ${k}`), 'на листе А — ответы Б'));
+      keys('А').forEach((k, j) => assert.ok(peer(b).includes(`${j + 1}) ${k}`), 'на листе Б — ответы А'));
+    }
+  });
+
+  test(`${slug}: лесенка — у каждого задания две подсказки из тренажёра`, t => {
+    const { window: w } = open(t, '?mode=print');
+    const A = w.APP;
+    for (let i = 0; i < 30; i++) {
+      const v = A.printVariant(1000 + i * 293, 'ladder');
+      v.tasks.forEach((task, k) => assert.deepEqual([...v.hints[k]], [...A.TYPES[task.type].hints(task)].slice(0, 2)));
+      const box = w.document.createElement('div'); box.innerHTML = A.SHEETS.ladder.sheet(v);
+      assert.equal(box.querySelectorAll('.lrow').length, v.tasks.length);
+      assert.equal(box.querySelectorAll('.lrow .hint').length, v.tasks.length * 2);
+    }
   });
 }

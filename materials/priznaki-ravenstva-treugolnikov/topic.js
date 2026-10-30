@@ -246,7 +246,7 @@ function enoughSVG(t) {
 const TYPES = {
   // по чертежу определить, по какому признаку равны треугольники
   which: {
-    input: 'choice', title: 'Какой признак?', options: SIGN_OPTS,
+    input: 'choice', title: 'Какой признак?', oral: true, options: SIGN_OPTS,
     gen: rnd => {
       const kind = pick(rnd, ['s1', 's2', 's3']);
       const v = kind === 's1' ? pick(rnd, ['A', 'B', 'C']) : kind === 's2' ? pick(rnd, ['AB', 'BC', 'CA']) : '';

@@ -2,8 +2,8 @@
 // Основной показ темы (buildSteps) — вид 'main'. Остальные собираются из TYPES: тема ничего не пишет, только
 // подсказывает типам флаги и методы:
 //   T.oral = true                  тип годится для устного счёта (разминка);
-//   T.statement(t, html)           утверждение «задание = ответ» для «верно — неверно» (по умолчанию — «запись = ответ»
-//                                  для типов с числовым ответом: num, frac);
+//   T.statement(t, html)           утверждение «задание = ответ» для «верно — неверно» (по умолчанию для num, frac —
+//                                  «запись = ответ»; у задания с чертежом или условием словами — задание целиком и «Ответ: …»);
 //   T.mistake(t, rnd)              { lines, at, fix, why } — решение с одной ошибкой (core/formats.js, «найди ошибку»).
 // Шаги — те же {q, a, note, draw, rec}, что и в основном показе, поэтому доска, клавиши и «Другие числа» работают как обычно.
 // Зерно показа — число (B.e.seed): «Другие числа» берёт новое, первый показ — зерно 1 (повторяемо).
@@ -12,6 +12,11 @@ const showOk = T => typeof T.traps === 'function' && typeof T.keyHTML === 'funct
 const showOral = () => Object.keys(TYPES).filter(k => TYPES[k].oral);
 const showTf = () => Object.keys(TYPES).filter(k => showOk(TYPES[k]) && (TYPES[k].statement || ['num', 'frac'].includes(TYPES[k].input)));
 const showTypesOf = list => [...new Set(list.map(([ty]) => ty))];
+// «AB = 5» без чертежа ничего не значит: задание с чертежом или словами показываем целиком
+function tfDefault(t, html) {
+  const q = askHTML(t), plain = String(TYPES[t.type].text(t)).replace(/<[^>]+>/g, '');
+  return /<svg/.test(q) || /[а-яё]{4,}/i.test(plain) ? `${q}<p class="tf">Ответ: ${html}</p>` : `${TYPES[t.type].text(t)} = ${html}`;
+}
 const showStep = (q, a, note, rec = () => []) => ({ q, a, note, draw: () => '', rec });
 
 const SHOWS = {
@@ -57,7 +62,7 @@ const SHOWS = {
         const type = types[i % types.length], T = TYPES[type], t = generate(type, rnd);
         const traps = T.traps(t), isTrue = !traps.length || rnd() < .5;
         const html = isTrue ? T.keyHTML(t) : pick(rnd, traps).html;
-        const text = T.statement ? T.statement(t, html) : `${T.text(t)} = ${html}`;
+        const text = T.statement ? T.statement(t, html) : tfDefault(t, html);
         marks.push(isTrue);
         return showStep(`<b>${i + 1}.</b> Верно ли: ${text}`,
           isTrue ? `<b>Верно.</b> ${T.ok(t)}` : `<b>Неверно.</b> Правильно: ${answerHTML(t)}.`,
@@ -78,7 +83,7 @@ const SHOWS = {
       }
       return cases.map(({ t, m }, i) => ({
         q: (_m, ph) => `<b>${i + 1}.</b> ${askHTML(t)}<ol class="elines">${m.lines.map((l, k) => `<li${ph && k === m.at ? ' class="wrong"' : ''}>${l}</li>`).join('')}</ol>`,
-        a: `Ошибка в строке ${m.at + 1}: ${m.why} Верно: ${m.fix}`,
+        a: `Строка ${m.at + 1}. ${m.why} Верно: ${m.fix}`,
         note: 'Пусть класс сначала найдёт строку, потом объяснит, в чём ошибка. Ответ — по кнопке.',
         draw: () => '',
         rec: ph => ph ? [`Строка ${m.at + 1}: ${m.fix}`] : [],

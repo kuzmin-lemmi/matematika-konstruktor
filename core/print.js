@@ -93,12 +93,40 @@ function ogeKeyHTML(vs) {
     </table><p style="font-size:10pt">Ответ верен, если совпадает с ключом (запятая или точка — одинаково). Ключ всегда можно восстановить
     по номеру варианта: режим «Раздатка», вид листа «Бланк ответов».</p></div>`;
 }
+// Диагностика ловушек: какую ошибку означает буква-ловушка. Тема ничего не пишет: категорию даёт T.wrong
+// по значению ловушки (или trap.cat, если тема его задала). Варианты не меняются — меняется только ключ.
+function trapCat(t, trap) {
+  if (trap.cat) return trap.cat;
+  const T = TYPES[t.type];
+  // число — разбираем ловушку как ответ; выбор и кнопки (T.opts) — ключ ловушки и есть ответ;
+  // остальные виды ввода (многочлен, одночлен) — только trap.cat от темы
+  const num = ['num', 'frac'].includes(T.input), pickLike = T.input === 'choice' || typeof T.opts === 'function';
+  if (!num && !pickLike) return null;
+  try {
+    const x = num ? parseQ(trap.key) : trap.key;
+    if (!x) return null;
+    const r = T.wrong(t, x);
+    return r && r.cat !== 'calc' ? r.cat : null;   // «вычисления» — не типичная ошибка, в расшифровку не идёт
+  } catch { return null; }
+}
+const catName = c => (CATS[c] || [c])[0];
+// для каждого задания варианта: [{ letter, cat }] — буквы ловушек из таблицы букв этого варианта
+function trapLetters(v) {
+  const letter = new Map(v.bank.map(b => [b.key, b.letter]));
+  return v.tasks.map((t, i) => (TYPES[t.type].traps?.(t) || []).slice(0, CONFIG.print.traps)
+    .filter(x => x.key !== v.answers[i] && letter.has(x.key))
+    .map(x => ({ letter: letter.get(x.key), cat: trapCat(t, x) })).filter(x => x.cat));
+}
 function keyHTML(vs) {
   const head = vs[0].tasks.map((_, i) => `<th>${i + 1}</th>`).join('');
+  const traps = vs.map(trapLetters), cats = [...new Set(traps.flat(2).map(x => x.cat))], no = c => cats.indexOf(c) + 1;
+  const cell = (t, x) => TYPES[t.type].keyHTML(t) + (x.length ? `<span class="trp">${x.map(y => `${y.letter}<sup>${no(y.cat)}</sup>`).join(' ')}</span>` : '');
   return `<div class="page key"><h2>Ключ учителя · ${lowerTitle()}</h2>
     <table class="key"><thead><tr><th>Вариант</th>${head}<th>Слово</th></tr></thead>
-    ${vs.map(v => `<tr><td>${v.label}</td>${v.tasks.map(t => `<td>${TYPES[t.type].keyHTML(t)}</td>`).join('')}<td><b>${v.word}</b></td></tr>`).join('')}
-    </table><p style="font-size:10pt">Слово сложилось — все ответы верны. Ключ всегда можно восстановить по номеру варианта в режиме «Раздатка».</p></div>`;
+    ${vs.map((v, k) => `<tr><td>${v.label}</td>${v.tasks.map((t, i) => `<td>${cell(t, traps[k][i])}</td>`).join('')}<td><b>${v.word}</b></td></tr>`).join('')}
+    </table><p style="font-size:10pt">Слово сложилось — все ответы верны. Ключ всегда можно восстановить по номеру варианта в режиме «Раздатка».</p>
+    ${cats.length ? `<div class="diag"><b>Буквы-ловушки.</b> Под ответом — буквы, которые получаются при типичной ошибке, с номером ошибки:
+      <ol>${cats.map(c => `<li>${catName(c)}</li>`).join('')}</ol></div>` : ''}</div>`;
 }
 // Номера и настройки запоминаются в браузере: напечатал листы, закрыл вкладку — ключ потом
 // печатается по тем же номерам. Без localStorage номера просто будут новыми.
@@ -136,7 +164,9 @@ function drawSheets() {
     html += `<div class="page half compact ${format.pageClass || ''}">${sheet(vs[i])}${vs[i + 1] ? sheet(vs[i + 1]) : ''}</div>`;
   else if (format.perPage) for (let i = 0; i < vs.length; i += format.perPage)
     html += `<div class="page ${format.pageClass || ''}">${vs.slice(i, i + format.perPage).map(v => sheet(v)).join('')}</div>`;
-  else html = vs.map(v => `<div class="page ${format.pageClass || ''}${space ? '' : ' compact'}">${sheet(v)}</div>`).join('');
+  // flow — лист может занять больше страницы (сетка для решения, длинные задания): при печати он переносится,
+  // а не обрезается по высоте A4; задание не разрывается (.task — break-inside: avoid)
+  else html = vs.map(v => `<div class="page ${format.pageClass || ''}${space ? '' : ' compact'}${space || format.flow ? ' flow' : ''}">${sheet(v)}</div>`).join('');
   $('pSheets').innerHTML = (vs.length ? key(vs) : '') + html;
   fitKeys();
   return vs;
@@ -168,7 +198,8 @@ function printNow(what) {
 const SHEETS = {
   word: { label: 'Кодовое слово', about: PRINT.about, generate: wordVariantV1, sheet: sheetHTML, key: keyHTML },
   ...(HAS_OGE ? { oge: { label: 'Бланк ОГЭ', about: PRINT.ogeAbout, generate: ogeVariantV1, sheet: ogeSheetHTML, key: ogeKeyHTML } } : {}),
-  ...CORE_SHEETS,                                      // билет на выход, самостоятельная, домино, «найди ошибку» (core/formats.js)
+  // форматы ядра (core/formats.js); если у темы есть свой лист с тем же названием (билет на выход), остаётся её лист
+  ...Object.fromEntries(Object.entries(CORE_SHEETS).filter(([, f]) => typeof TOPIC_SHEETS === 'undefined' || !Object.values(TOPIC_SHEETS).some(x => x.label === f.label))),
   ...(typeof TOPIC_SHEETS === 'undefined' ? {} : TOPIC_SHEETS),
 };
 const PRINT_GENERATORS = { 1: Object.fromEntries(Object.entries(SHEETS).map(([k, f]) => [k, f.generate])),
