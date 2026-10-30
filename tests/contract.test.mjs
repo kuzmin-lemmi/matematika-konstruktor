@@ -9,7 +9,7 @@ import { loadHtml } from '../tools/load.mjs';
 import { ROOT, isSlug } from '../tools/paths.mjs';
 import { TEMPLATE, buildTemplate } from './template.mjs';
 
-const SLUGS = readdirSync(join(ROOT, 'materials')).filter(isSlug);
+const SLUGS = readdirSync(join(ROOT, 'materials')).filter(isSlug).filter(s => !process.env.MATSHAG_CHECK_SLUG || s === process.env.MATSHAG_CHECK_SLUG);
 // заготовка новой темы проходит тот же контракт: npm run new даёт рабочий пример
 const BAD = /undefined|NaN|\[object Object\]/;
 const plain = x => JSON.parse(JSON.stringify(x));
@@ -31,7 +31,7 @@ function wrong(T, t, A) {
   return null;
 }
 
-for (const slug of [...SLUGS, TEMPLATE]) {
+for (const slug of [...SLUGS, ...(process.env.MATSHAG_CHECK_SLUG ? [] : [TEMPLATE])]) {
   const html = slug === TEMPLATE ? buildTemplate() : buildMaterial(slug);
   const open = (t, query = '', options = {}) => {
     const m = loadHtml(html, { query, slug, ...options });
