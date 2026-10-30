@@ -137,15 +137,16 @@ function renderPrint() {
     $('pCount').value = printNums.length;
     $('pSpace').checked = store.get('printSpace') ? store.get('printSpace') === '1' : CONFIG.print.space;
     $('pTwo').checked = store.get('printTwo') === '1';
-    $('pKind').value = SHEETS[store.get('printKind')] ? store.get('printKind') : 'word';
+    $('pKind').value = printFormatChoices().some(([k]) => k === store.get('printKind')) ? store.get('printKind') : defaultPrintKind();
     if (saved.length) $('pMsg').textContent = 'Открыты номера, с которыми вы работали в прошлый раз. Для другого класса нажмите «Новые номера».';
   }
-  if (pendingKind) { $('pKind').value = SHEETS[pendingKind] ? pendingKind : 'word'; pendingKind = null; }
+  if (pendingKind) { $('pKind').value = SHEETS[pendingKind] ? pendingKind : defaultPrintKind(); pendingKind = null; }
   $('pNums').value = printNums.map(n => typeof n === 'string' ? n : GEN_VERSION + '-' + n).join(', ');
   drawSheets();
 }
 function drawSheets() {
-  const kind = SHEETS[$('pKind').value] ? $('pKind').value : 'word';
+  const kind = SHEETS[$('pKind').value] ? $('pKind').value : defaultPrintKind();
+  $('pKind').value = kind;
   const format = SHEETS[kind];
   document.querySelectorAll('[data-kind-set]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kindSet === $('pKind').value)));
   const vs = printNums.map(n => printVariant(n, kind));
@@ -214,16 +215,27 @@ function printVariant(num, kind = 'word', version = GEN_VERSION) {
 }
 function makeVariant(num, version = GEN_VERSION) { return printVariant(num, 'word', version); }
 function makeVariantOGE(num, version = GEN_VERSION) { return printVariant(num, 'oge', version); }
+// Тема может оставить в меню нужные форматы; генераторы остальных доступны для старых номеров и тестов.
+function printFormatChoices() {
+  if (!CONFIG.print.formats) return Object.entries(SHEETS);
+  const choices = CONFIG.print.formats.map(k => [k, SHEETS[k]]).filter(([, f]) => f);
+  if (!choices.length) throw new Error('CONFIG.print.formats: нет известного формата печати');
+  return choices;
+}
+function defaultPrintKind() {
+  const choices = printFormatChoices();
+  return choices.some(([k]) => k === CONFIG.print.defaultKind) ? CONFIG.print.defaultKind : choices[0][0];
+}
 function initPrintFormats() {
-  const choices = Object.entries(SHEETS);
+  const choices = printFormatChoices();
   const input = $('pKind');
   const old = input.closest('.row');
   if (old) { old.before(input); old.remove(); }
-  input.insertAdjacentHTML('beforebegin', '<div class="row"><b>Вид листа:</b><div class="seg" role="group" aria-label="Вид листа">' + choices.map(([k, f]) => '<button type="button" data-kind-set="' + k + '" aria-pressed="' + (k === 'word') + '">' + esc(f.label) + '</button>').join('') + '</div></div>');
+  if (choices.length > 1) input.insertAdjacentHTML('beforebegin', '<div class="row"><b>Вид листа:</b><div class="seg" role="group" aria-label="Вид листа">' + choices.map(([k, f]) => '<button type="button" data-kind-set="' + k + '" aria-pressed="' + (k === defaultPrintKind()) + '">' + esc(f.label) + '</button>').join('') + '</div></div>');
   const start = document.querySelector('#start [data-go="print"]')?.closest('.mode');
   if (start) {
     const box = document.createElement('div'); box.className = 'mode split';
-    box.innerHTML = '<b>🖨 Раздатка</b><span>' + esc(META.modePrint) + '</span><div class="kinds">' + choices.map(([k, f]) => '<button type="button" data-go="print" data-kind="' + k + '">' + esc(f.label) + '</button>').join('') + '</div>';
+    box.innerHTML = '<b>🖨 ' + esc(CONFIG.print.label || 'Раздатка') + '</b><span>' + esc(META.modePrint) + '</span><div class="kinds">' + choices.map(([k, f]) => '<button type="button" data-go="print" data-kind="' + k + '">' + esc(f.label) + '</button>').join('') + '</div>';
     start.replaceWith(box);
   }
   $('pPrintKey').insertAdjacentHTML('afterend', '<button type="button" id="pExtraKey" aria-expanded="false" hidden>Показать ключ</button>');

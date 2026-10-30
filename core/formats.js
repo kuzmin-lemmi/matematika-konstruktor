@@ -63,7 +63,9 @@ const TEST_SHEET = {
   sheet: (v, space) => `<div class="sheet">
     ${fmtHead(v)}
     <h2>${META.title} · самостоятельная работа</h2>
+    ${PRINT.testInstr ? `<p class="instr">${PRINT.testInstr}</p>` : ''}
     <ol class="tasks one">${v.tasks.map((t, i) => `<li class="task"><span class="no">${i + 1})</span>${sheetTask(t)} <span class="pts">(${v.points[i]} ${plural(v.points[i], 'балл', 'балла', 'баллов')})</span>${space ? '<div class="cells"></div>' : '<div class="otv">Ответ: ______________</div>'}</li>`).join('')}</ol>
+    ${CONFIG.print.answerTable ? `<table class="ans"><tr><th>Задание</th>${v.tasks.map((_, i) => `<th>${i + 1}</th>`).join('')}</tr><tr class="tall"><th>Ответ</th>${v.tasks.map(() => '<td></td>').join('')}</tr></table>` : ''}
   </div>`,
   key: vs => {
     const plan = testPlan(), g = plan.grades;
