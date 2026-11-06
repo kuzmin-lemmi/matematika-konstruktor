@@ -174,15 +174,18 @@ log(`✓ ${SITE_URL}/item/${slug}/`);
 
 // ---------- 8. Заморозка вариантов ----------
 step('Замораживаю варианты темы в конструкторе');
-const snap = join(ROOT, 'tests', 'snapshots', `${slug}.frozen.json`);
+const genVersion = (readFileSync(join(materialDir(slug), 'topic.js'), 'utf8').match(/^const\s+GEN_VERSION\s*=\s*(\d+)/m) || [])[1];
+if (!genVersion) fail(`materials/${slug}/topic.js: не нашёл const GEN_VERSION`);
+const snapName = `${slug}.v${genVersion}.frozen.json`;
+const snap = join(ROOT, 'tests', 'snapshots', snapName);
 if (!existsSync(snap)) {
-  writeFileSync(snap, JSON.stringify(frozen(outFile(cfg, slug), slug)));
-  log(`✓ tests/snapshots/${slug}.frozen.json`);
-} else log('· снимок уже есть — тест следит, чтобы варианты не менялись');
+  writeFileSync(snap, JSON.stringify(frozen(outFile(cfg, slug), slug, +genVersion)));
+  log(`✓ tests/snapshots/${snapName}`);
+} else log(`· снимок версии ${genVersion} уже есть — тест следит, чтобы варианты не менялись`);
 if (existsSync(join(ROOT, '.git'))) {
   // коммитим только то, что относится к опубликованной теме: её файлы и снимок вариантов
   if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) fail('Индекс конструктора не пуст: отдельный коммит требуется до фиксации темы.');
-  sh(`git add -- "materials/${slug}" "tests/snapshots/${slug}.frozen.json"`, ROOT, { quiet: true });
+  sh(`git add -- "materials/${slug}" "tests/snapshots/${snapName}"`, ROOT, { quiet: true });
   if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) {
     // В отдельной рабочей копии .git — файл; настоящий каталог сообщает сам Git.
     const msgFile = sh('git rev-parse --path-format=absolute --git-path MATSHAG_MSG', ROOT, { quiet: true }).trim();

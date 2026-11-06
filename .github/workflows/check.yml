@@ -1,0 +1,24 @@
+name: Проверка конструктора
+
+# Тесты конструктора не зависят от папки сайта: темы собираются в память и во временные файлы.
+# CI защищает работу с двух компьютеров: пока тесты не прошли, PR не вольётся.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
