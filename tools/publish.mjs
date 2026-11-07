@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { ROOT, readConfig, outFile, materialDir, isSlug } from './paths.mjs';
 import { buildMaterial } from './build.mjs';
-import { frozen } from './snapshot.mjs';
+import { frozen, snapVersioned, snapLegacy } from './snapshot.mjs';
 import { publicationFiles, foreignFiles } from './publication-files.mjs';
 
 const MODE = process.argv[2];   // check | publish
@@ -186,15 +186,22 @@ log(`✓ ${SITE_URL}/item/${slug}/`);
 
 // ---------- 8. Заморозка вариантов ----------
 step('Замораживаю варианты темы в конструкторе');
-const snap = join(ROOT, 'tests', 'snapshots', `${slug}.frozen.json`);
-if (!existsSync(snap)) {
-  writeFileSync(snap, JSON.stringify(frozen(outFile(cfg, slug), slug)));
-  log(`✓ tests/snapshots/${slug}.frozen.json`);
-} else log('· снимок уже есть — тест следит, чтобы варианты не менялись');
+{
+  const snap = frozen(outFile(cfg, slug), slug);
+  const ver = snap.version;
+  const body = JSON.stringify(snap);
+  const targets = [snapVersioned(slug, ver), snapLegacy(slug)];
+  let created = [];
+  for (const target of targets) {
+    if (!existsSync(target)) { writeFileSync(target, body); created.push(target); }
+  }
+  if (created.length) log(`✓ ${created.map(f => f.split(/[\\/]/).slice(-2).join('/')).join(', ')}`);
+  else log('· снимки уже есть — тест следит, чтобы варианты не менялись (перезапись только: npm run snapshot -- ' + slug + ' --force)');
+}
 if (existsSync(join(ROOT, '.git'))) {
-  // коммитим только то, что относится к опубликованной теме: её файлы и снимок вариантов
+  // коммитим только то, что относится к опубликованной теме: её файлы и снимки вариантов (legacy + версионный)
   if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) fail('Индекс конструктора не пуст: отдельный коммит требуется до фиксации темы.');
-  sh(`git add -- "materials/${slug}" "tests/snapshots/${slug}.frozen.json"`, ROOT, { quiet: true });
+  sh(`git add -- "materials/${slug}" "tests/snapshots/${slug}.frozen.json" "tests/snapshots/${slug}.v*.frozen.json"`, ROOT, { quiet: true });
   if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) {
     // В отдельной рабочей копии .git — файл; настоящий каталог сообщает сам Git.
     const msgFile = sh('git rev-parse --path-format=absolute --git-path MATSHAG_MSG', ROOT, { quiet: true }).trim();
