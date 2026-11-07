@@ -364,11 +364,89 @@ function boardExample(random, old) {
     quot: other(old.quot, [[18, 2], [45, 5], [32, 2], [27, 3], [50, 2], [75, 3], [98, 2], [24, 6], [200, 8]]),
     fracq: other(old.fracq, [[8, 50], [18, 50], [2, 50], [12, 48], [50, 8], [128, 32]]),
     neg: other(old.neg, [[4, 9], [9, 4], [5, 8], [7, 2]]),
-    out: other(old.out, OUTQ.map(([n]) => n)),
-    ins: other(old.ins, [[3, 8], [2, 5], [4, 3], [5, 2], [3, 11], [2, 6], [6, 2], [4, 5]]),
-    cmp: other(old.cmp, [[2, 7, 30], [3, 5, 50], [2, 11, 46], [4, 3, 50], [3, 6, 56], [2, 5, 21]]),
+    out: other(old.out, OUTQ.filter(([, k, m]) => k <= 6 && [2, 3, 5, 6, 7, 8].includes(m)).map(([n]) => n)),
+    ins: other(old.ins, [[3, 8], [2, 5], [4, 3], [5, 2], [3, 7], [2, 6], [6, 2], [4, 5]]),
+    cmp: other(old.cmp, [[2, 7, 30], [3, 5, 50], [5, 2, 60], [4, 3, 50], [3, 6, 56], [2, 5, 21]]),
   };
 }
+// ================= Живая доска =================
+// Модель одна на всю доску: стороны малых квадратов (a, b), коэффициент и подкоренное
+// для вынесения/внесения (kk, mm), подкоренное при сравнении (nn), go — раскрытие ответа.
+const LIVE = {
+  model: e => ({
+    a: isqrt(e.rects.a) || 2, b: isqrt(e.rects.b) || 2,
+    kk: 1, mm: e.ins[1], nn: 1, go: 0,
+  }),
+  fix(m) {
+    m.a = Math.max(2, Math.min(6, Math.round(m.a)));
+    m.b = Math.max(2, Math.min(6, Math.round(m.b)));
+    m.kk = Math.max(1, Math.min(6, Math.round(m.kk)));
+    if (![2, 3, 5, 6, 7, 8].includes(m.mm)) m.mm = 2;
+    m.nn = Math.max(1, Math.min(100, Math.round(m.nn)));
+    if (!Number.isFinite(m.go)) m.go = 0;
+  },
+  ok: m => [m.a, m.b, m.kk, m.mm, m.nn].every(Number.isFinite) && m.mm >= 2,
+};
+
+const PC = 10;                 // пикселей на единицу стороны малого квадрата
+const PBASE = 300;             // нижний край малых квадратов
+const PAX = 70;                // левый край первого малого квадрата
+const PBIGX = 420;             // левый край большого квадрата
+const KC = 20;                 // пикселей на единицу стороны клетки
+const radHTML = (k, m) => k === 1 ? RT(m) : `${k}${RT(m)}`;
+const radSVG = (k, m) => k === 1 ? sr(String(m)) : `${k}${sr(String(m))}`;
+const cmpSym = (l, r) => l === r ? '=' : l > r ? '&gt;' : '&lt;';
+
+// Квадраты площадей a² и b²; сторона большого — a·b, площадь — a²·b².
+function drawProduct(m, show) {
+  const { a, b } = m, sA = a * PC, sB = b * PC, sC = a * b * PC;
+  const yA = PBASE - sA, yB = PBASE - sB, yC = 200 - sC / 2, xB = PAX + sA + 60;
+  let s = grid(PAX, yA, a, a, PC, 'gs') + grid(xB, yB, b, b, PC, 'gw');
+  s += show ? `<rect class="ge" x="${PBIGX}" y="${yC}" width="${sC}" height="${sC}"/><rect class="gf" x="${PBIGX}" y="${yC}" width="${sC}" height="${sC}"/>`
+    : `<rect class="g-fig ghost" x="${PBIGX}" y="${yC}" width="${sC}" height="${sC}"/>`;
+  s += tx(PAX + sA / 2, yA - 14, `сторона ${a}`, 'lab s');
+  s += tx(xB + sB / 2, yB - 14, `сторона ${b}`, 'lab s');
+  s += under(PAX, yA + sA, sA, `S = ${a * a}`, 'warm');
+  s += under(xB, yB + sB, sB, `S = ${b * b}`, 'warm');
+  if (show) {
+    s += tx(PBIGX + sC / 2, yC + sC / 2 + 8, `S = ${a * a * b * b}`, 'lab acc');
+    s += tx(PBIGX + sC + 30, yC + sC / 2 - 20, `${sr(String(a * a))} · ${sr(String(b * b))} = ${a} · ${b} = ${a * b}`, 'lab s acc', 'start');
+    s += tx(PBIGX + sC + 30, yC + sC / 2 + 26, `сторона ${a * b}`, 'lab s', 'start');
+  } else {
+    s += tx(PBIGX + sC / 2, yC + sC / 2 + 8, 'S = ?', 'lab warm');
+    s += tx(PBIGX + sC / 2, yC > 34 ? yC - 14 : yC + 24, 'сторона ?', 'lab warm');
+  }
+  return s;
+}
+
+// Квадрат из k·k клеток площади m: сторона k√m, площадь k²m.
+function drawFactor(m, show) {
+  const cell = Math.sqrt(m.mm) * KC, side = m.kk * cell, x = 80, y = 200 - side / 2;
+  let s = grid(x, y, m.kk, m.kk, cell, 'ge');
+  s += tx(x + side / 2, y + side / 2 + 8, show ? `S = ${m.kk * m.kk * m.mm}` : 'S = ?', show ? 'lab acc' : 'lab warm');
+  if (show) {
+    s += tx(x + side + 26, y + side / 2 - 22, `сторона ${radSVG(m.kk, m.mm)}`, 'lab s acc', 'start');
+    s += tx(x + side + 26, y + side / 2 + 22, `${m.kk}² · ${m.mm} = ${m.kk * m.kk * m.mm}`, 'lab s', 'start');
+  }
+  return s;
+}
+
+// Два квадрата: стороны k√m и √n, их площади — k²m и n. Сравнивать числа — то же, что квадраты.
+function drawCompare(m, show) {
+  const sc = 16, s1 = m.kk * Math.sqrt(m.mm) * sc, s2 = Math.sqrt(m.nn) * sc;
+  const y0 = 330, x1 = 110, x2 = 560, y1 = y0 - s1, y2 = y0 - s2;
+  let s = `<line class="gl" x1="60" y1="${y0}" x2="920" y2="${y0}"/>`;
+  s += `<rect class="ge" x="${x1}" y="${y1}" width="${s1}" height="${s1}"/><rect class="gf" x="${x1}" y="${y1}" width="${s1}" height="${s1}"/>`;
+  s += `<rect class="gw" x="${x2}" y="${y2}" width="${s2}" height="${s2}"/><rect class="gf" x="${x2}" y="${y2}" width="${s2}" height="${s2}"/>`;
+  s += tx(x1 + s1 / 2, y1 - 16, `${m.kk * m.kk * m.mm}`, 'lab acc');
+  s += tx(x2 + s2 / 2, y2 - 16, `${m.nn}`, 'lab acc');
+  s += tx(x1 + s1 / 2, y0 + 40, radSVG(m.kk, m.mm), 'lab s');
+  s += tx(x2 + s2 / 2, y0 + 40, sr(String(m.nn)), 'lab s');
+  s += tx(490, 236, show ? cmpSym(m.kk * m.kk * m.mm, m.nn) : '?', show ? 'lab acc' : 'lab s');
+  if (show) s += `<g class="new">${tx(490, 290, 'сравнили площади', 'lab s soft')}</g>`;
+  return s;
+}
+
 function buildSteps(e) {
   const { a, b } = e.rects;                 // √(a·b): a и b — квадраты
   const ka = isqrt(a), kb = isqrt(b), kw = ka * kb;
@@ -385,35 +463,34 @@ function buildSteps(e) {
   // 1. Повторение: корень — сторона квадрата
   steps.push({
     q: `Какая сторона у квадрата площадью ${a * b}?`,
-    a: `${kw}: ${kw}² = ${kw * kw} = ${a * b}.`,
+    a: `${kw} · ${kw} = ${a * b}, значит сторона квадрата ${kw}.`,
     note: 'Повторение первого материала: корень — это сторона квадрата с данной площадью. Сторону пусть назовёт класс.',
-    draw: ph => {
-      const c = Math.min(26, Math.floor(240 / kw)), size = kw * c, x = 170, y = 70;
-      let s = grid(x, y, kw, kw, c, 'gs');
-      s += under(x, y + size, size, `S = ${a * b}`, 'warm');
-      s += ph ? `<g class="new">${tx(x + size / 2, y - 24, `сторона ${sr(String(kw))} = ${kw}`, 'lab acc')}</g>` : tx(x + size / 2, y - 24, 'сторона ?', 'lab warm');
-      if (ph) s += `<g class="new">${tx(x + size + 130, y + size / 2 + 40, `${sr(String(a * b))} = ${kw}`, 'lab acc')}</g>`;
-      return s;
-    },
+    draw: ph => drawProduct({ a: ka, b: kb }, ph),
     rec: ph => ph ? [`${RT(a * b)} = ${kw}`] : [],
   });
-  // 2. Свойство на примере: √(a·b) = √a·√b
+  // 2. Свойство на примере: √(a·b) = √a·√b — стороны малых квадратов можно двигать
   steps.push({
-    q: `${a * b} — это ещё и ${a} · ${b}. Чему равен ${sr(`${a}·${b}`)} по-другому?`,
-    a: `${sr(`${a}·${b}`)} = ${sr(String(a))} · ${sr(String(b))} = ${ka} · ${kb} — тот же ответ!`,
-    note: `Стороны малых квадратов: ${RT(a)} = ${ka} и ${RT(b)} = ${kb}. Сторона большого — их произведение: ${ka}·${kb} = ${kw}. Проверка: ${kw}² = ${kw * kw} = ${a}·${b}.`,
-    draw: ph => {
-      const c = Math.min(24, Math.floor(200 / kw)), xA = 130, yA = 168, sA = ka * c, xB = xA + sA + 70, yB = yA + sA - kb * c, sB = kb * c;
-      const xC = xB + sB + 90, yC = 88, sC = kw * c;
-      let s = grid(xA, yA, ka, ka, c, 'gs') + under(xA, yA + sA, sA, ph ? `${sr(String(a))} = ${ka}` : 'сторона ?', 'warm');
-      s += grid(xB, yB, kb, kb, c, 'gw') + under(xB, yB + sB, sB, ph ? `${sr(String(b))} = ${kb}` : 'сторона ?', 'warm');
-      s += grid(xC, yC, kw, kw, c, 'ge') + tx(xC + sC / 2, yC - 24, sr(`${a} · ${b}`), 'lab acc') +
-        under(xC, yC + sC, sC, ph ? `сторона ${kw}` : 'сторона ?', 'warm');
-      if (ph) s += `<g class="new">${tx(xC + sC + 120, yC + 60, `${sr(`${a}·${b}`)} = ${sr(String(a))} · ${sr(String(b))}`, 'lab s acc', 'start')}` +
-        `${tx(xC + sC + 120, yC + 130, `${ka} · ${kb} = ${kw}`, 'lab s acc', 'start')}</g>`;
-      return s;
+    q: m => `Площади малых квадратов ${m.a * m.a} и ${m.b * m.b}. Их произведение ${m.a * m.a * m.b * m.b}. Чему равен ${RT(`${m.a * m.a} · ${m.b * m.b}`)}?`,
+    a: m => `${RT(m.a * m.a)} · ${RT(m.b * m.b)} = ${m.a} · ${m.b} = ${m.a * m.b} — тот же ответ!`,
+    note: 'Стороны малых квадратов можно тянуть за угол или менять ползунками. Площадь большого квадрата — произведение площадей, а его сторона — произведение сторон: √(a·b) = √a·√b. Нажмите «Показать ответ» — большой квадрат раскроется.',
+    live: {
+      enter(m) { m.a = ka; m.b = kb; m.go = 0; },
+      reveal(m) { liveTo({ go: 1 }, 900); },
+      handles: m => [
+        { id: 'a', at: { x: PAX + m.a * PC, y: PBASE - m.a * PC }, label: 'Сторона первого квадрата',
+          move(m, p) { m.a = Math.max(2, Math.min(6, Math.round(((p.x - PAX) + (PBASE - p.y)) / (2 * PC)))); },
+          key(m, dx) { m.a += dx; } },
+        { id: 'b', at: { x: PAX + m.a * PC + 60 + m.b * PC, y: PBASE - m.b * PC }, label: 'Сторона второго квадрата',
+          move(m, p) { m.b = Math.max(2, Math.min(6, Math.round(((p.x - (PAX + m.a * PC + 60)) + (PBASE - p.y)) / (2 * PC)))); },
+          key(m, dx) { m.b += dx; } },
+      ],
+      controls: () => [
+        { id: 'a', type: 'range', label: 'Сторона первого квадрата', min: 2, max: 6, get: m => m.a, set(m, v) { m.a = v; } },
+        { id: 'b', type: 'range', label: 'Сторона второго квадрата', min: 2, max: 6, get: m => m.b, set(m, v) { m.b = v; } },
+      ],
     },
-    rec: ph => ph ? [`${RT(`${a}·${b}`)} = ${RT(a)} · ${RT(b)} = ${ka} · ${kb} = ${kw}`] : [],
+    draw: (ph, m) => drawProduct(m, m.go > .5),
+    rec: (ph, m) => ph ? [`${RT(`${m.a * m.a} · ${m.b * m.b}`)} = ${RT(m.a * m.a)} · ${RT(m.b * m.b)} = ${m.a} · ${m.b} = ${m.a * m.b}`] : [],
   });
   // 3. Формулировка свойства
   steps.push({
@@ -463,29 +540,82 @@ function buildSteps(e) {
     draw: () => '',
     rec: ph => ph ? [`${RT(`${MINUS}${na}`)} и ${RT(`${MINUS}${nb}`)} — не имеют смысла`, `условие: <i>a</i> ≥ 0, <i>b</i> ≥ 0`] : [],
   });
-  // 9. Вынесение множителя
+  // 9. Вынесение множителя: квадрат из k·k клеток, сторона k√m
   steps.push({
-    q: `Как упростить ${RT(n)}?`,
-    a: `${n} = ${ok * ok} · ${om}, значит ${RT(n)} = ${ok}${RT(om)}.`,
-    note: `Вынесение множителя: найди наибольший квадратный множитель. Проверка: (${ok}${RT(om)})² = ${ok * ok} · ${om} = ${n}.`,
-    draw: () => '',
-    rec: ph => ph ? [`${RT(n)} = ${RT(`${ok * ok}·${om}`)} = ${ok}${RT(om)}`] : [],
+    q: m => `Как упростить ${RT(m.kk * m.kk * m.mm)}?`,
+    a: m => `${m.kk * m.kk * m.mm} = ${m.kk * m.kk} · ${m.mm}, значит ${RT(m.kk * m.kk * m.mm)} = ${radHTML(m.kk, m.mm)}.`,
+    note: m => `Вынесение множителя: под корнем ищем квадратный множитель. Квадрат разрезан на ${m.kk} · ${m.kk} = ${m.kk * m.kk} клеток площади ${m.mm}: его сторона ${radHTML(m.kk, m.mm)}, площадь ${m.kk * m.kk * m.mm}. Ползунок k и ручка на углу показывают, как растут сторона и площадь. На «Показать ответ» k доходит до ${ok}: ${RT(n)} = ${ok}${RT(om)}.`,
+    live: {
+      enter(m) { m.kk = 2; m.mm = om; },
+      reveal(m) { liveTo({ kk: ok }, 1400); },
+      handles: m => {
+        const cell = Math.sqrt(m.mm) * KC, side = m.kk * cell, x = 80, y = 200 - side / 2;
+        return [{ id: 'kk', at: { x: x + side, y: y + side }, label: 'Сколько клеток вдоль стороны',
+          move(m, p) { m.kk = Math.max(1, Math.min(6, Math.round((((p.x - x) + (p.y - y)) / 2) / cell))); },
+          key(m, dx) { m.kk += dx; } }];
+      },
+      controls: () => [
+        { id: 'kk', type: 'range', label: 'k — клеток вдоль стороны', min: 1, max: 6, get: m => m.kk, set(m, v) { m.kk = v; } },
+        { id: 'mm', type: 'choice', label: 'm — площадь клетки', options: [[2, '2'], [3, '3'], [5, '5'], [6, '6'], [7, '7'], [8, '8']], get: m => m.mm, set(m, v) { m.mm = v; } },
+      ],
+    },
+    draw: (ph, m) => drawFactor(m, ph || m.kk > 1),
+    rec: (ph, m) => ph ? [`${RT(m.kk * m.kk * m.mm)} = ${RT(`${m.kk * m.kk}·${m.mm}`)} = ${radHTML(m.kk, m.mm)}`] : [],
   });
-  // 10. Внесение множителя
+  // 10. Внесение множителя: тот же квадрат, только читаем справа налево
   steps.push({
-    q: `А если наоборот: ${ik}${RT(im)} = √${ik * ik * im}?`,
-    a: `${ik}${RT(im)} = ${RT(`${ik * ik}·${im}`)} = ${RT(ik * ik * im)}.`,
-    note: `Внесение множителя — наоборот: коэффициент вносится в квадрате. ${ik * ik * im === n ? `И это то же число, что и в прошлом шаге: ${ik}${RT(im)} = ${RT(n)} = ${ok}${RT(om)}!` : ''}`,
-    draw: () => '',
-    rec: ph => ph ? [`${ik}${RT(im)} = ${RT(ik * ik * im)}`] : [],
+    q: m => `Внеси множитель под корень: ${radHTML(m.kk, m.mm)} = √?`,
+    a: m => `${m.kk}² = ${m.kk * m.kk}, значит ${radHTML(m.kk, m.mm)} = ${RT(`${m.kk * m.kk}·${m.mm}`)} = ${RT(m.kk * m.kk * m.mm)}.`,
+    note: m => `Внесение — обратное действие: коэффициент вносится в квадрате. ${radHTML(m.kk, m.mm)} = ${RT(m.kk * m.kk * m.mm)}. Двигайте ползунок k: число под корнем растёт как k², а сторона квадрата — как k. ${ik * ik * im === n ? `На «Показать ответ» k доходит до ${ik}, и получается то же число, что при вынесении: ${ik}${RT(im)} = ${RT(n)} = ${ok}${RT(om)}.` : ''}`,
+    live: {
+      enter(m) { m.kk = 2; m.mm = im; },
+      reveal(m) { liveTo({ kk: ik }, 1200); },
+      handles: m => {
+        const cell = Math.sqrt(m.mm) * KC, side = m.kk * cell, x = 80, y = 200 - side / 2;
+        return [{ id: 'kk', at: { x: x + side, y: y + side }, label: 'Сколько клеток вдоль стороны',
+          move(m, p) { m.kk = Math.max(1, Math.min(6, Math.round((((p.x - x) + (p.y - y)) / 2) / cell))); },
+          key(m, dx) { m.kk += dx; } }];
+      },
+      controls: () => [
+        { id: 'kk', type: 'range', label: 'k — коэффициент', min: 1, max: 6, get: m => m.kk, set(m, v) { m.kk = v; } },
+        { id: 'mm', type: 'choice', label: 'm — число под корнем', options: [[2, '2'], [3, '3'], [5, '5'], [6, '6'], [7, '7'], [8, '8']], get: m => m.mm, set(m, v) { m.mm = v; } },
+      ],
+    },
+    draw: (ph, m) => drawFactor(m, ph || m.kk > 1),
+    rec: (ph, m) => ph ? [`${radHTML(m.kk, m.mm)} = ${RT(`${m.kk * m.kk}·${m.mm}`)} = ${RT(m.kk * m.kk * m.mm)}`] : [],
   });
   // 11. Сравнение: внесли — и сравнили подкоренные
   steps.push({
-    q: `Что больше: ${ck}${RT(cm)} или ${RT(cn)}?`,
-    a: `${ck}${RT(cm)} = ${RT(ck * ck * cm)}, а ${RT(cn)} = ${RT(cn)}. Подкоренные числа: ${ck * ck * cm} ${ck * ck * cm < cn ? '&lt;' : '&gt;'} ${cn}, значит ${ck}${RT(cm)} ${ck * ck * cm < cn ? 'меньше' : 'больше'}.`,
-    note: `Внесение помогает сравнивать: ${ck}${RT(cm)} = ${RT(ck * ck * cm)}. Сравниваем подкоренные числа: ${ck * ck * cm} ${ck * ck * cm < cn ? '<' : '>'} ${cn}.`,
-    draw: () => '',
-    rec: ph => ph ? [`${ck}${RT(cm)} = ${RT(ck * ck * cm)}`, `${ck * ck * cm} ${ck * ck * cm < cn ? '&lt;' : '&gt;'} ${cn}`] : [],
+    q: m => `Что больше: ${radHTML(m.kk, m.mm)} или ${RT(m.nn)}?`,
+    a: m => `${radHTML(m.kk, m.mm)} = ${RT(m.kk * m.kk * m.mm)}. Под корнем ${m.kk * m.kk * m.mm} ${cmpSym(m.kk * m.kk * m.mm, m.nn)} ${m.nn}, значит ${radHTML(m.kk, m.mm)} ${cmpSym(m.kk * m.kk * m.mm, m.nn)} ${RT(m.nn)}.`,
+    note: 'Внесение помогает сравнивать: 2√7 = √28. Второй квадрат тяните за угол или двигайте ползунком n: при n = 28 площади равны, при больших n второе число становится больше — знак меняется на глазах. Кнопка «Показать ответ» ставит знак.',
+    live: {
+      enter(m) { m.kk = ck; m.mm = cm; m.nn = cn; },
+      handles: m => {
+        const sc = 16, y0 = 330, x1 = 110, x2 = 560;
+        return [
+          { id: 'kk', at: { x: x1 + m.kk * Math.sqrt(m.mm) * sc, y: y0 - m.kk * Math.sqrt(m.mm) * sc }, label: 'Множитель первого числа',
+            move(m, p) {
+              const side = ((p.x - x1) + (y0 - p.y)) / 2;
+              m.kk = Math.max(1, Math.min(6, Math.round(side / (sc * Math.sqrt(m.mm)))));
+            },
+            key(m, dx) { m.kk += dx; } },
+          { id: 'nn', at: { x: x2 + Math.sqrt(m.nn) * sc, y: y0 - Math.sqrt(m.nn) * sc }, label: 'Число под корнем у второго квадрата',
+            move(m, p) {
+              const side = ((p.x - x2) + (y0 - p.y)) / 2;
+              m.nn = Math.max(1, Math.min(100, Math.round((side / sc) ** 2)));
+            },
+            key(m, dx) { m.nn += dx; } },
+        ];
+      },
+      controls: () => [
+        { id: 'nn', type: 'range', label: 'n — площадь второго квадрата', min: 1, max: 100, get: m => m.nn, set(m, v) { m.nn = v; } },
+        { id: 'kk', type: 'range', label: 'k — множитель первого числа', min: 1, max: 6, get: m => m.kk, set(m, v) { m.kk = v; } },
+        { id: 'mm', type: 'choice', label: 'm — под корнем у первого', options: [[2, '2'], [3, '3'], [5, '5'], [6, '6'], [7, '7'], [8, '8']], get: m => m.mm, set(m, v) { m.mm = v; } },
+      ],
+    },
+    draw: (ph, m) => drawCompare(m, ph),
+    rec: (ph, m) => ph ? [`${radHTML(m.kk, m.mm)} = ${RT(m.kk * m.kk * m.mm)}`, `${m.kk * m.kk * m.mm} ${cmpSym(m.kk * m.kk * m.mm, m.nn)} ${m.nn}`] : [],
   });
   // 12. Итог
   steps.push({
