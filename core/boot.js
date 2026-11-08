@@ -102,7 +102,7 @@ window.APP = {
     restart: boardRestart, get show() { return B.show; }, useShow: boardUseShow, timer: boardTimer,
     // живая доска: модель, ручки и панель текущего шага; drag(id, {x, y}) и key(id, dx, dy) — как учитель рукой и стрелками
     get model() { return B.m; }, get snap() { return LV.snap; }, get animating() { return !!LV.anim; },
-    get handles() { return LV.handles.map(h => ({ id: h.id, label: h.label, at: { ...h.at } })); },
+    get handles() { return LV.handles.map(h => ({ id: h.id, label: h.label, at: { ...h.at }, r: h.r || 18, ring: h.ring || 0 })); },
     get controls() { return LV.controls.map(c => ({ id: c.id, type: c.type, label: c.label, min: c.min, max: c.max, options: c.options })); },
     drag: liveDrag, key: liveKey, set: liveSet, reset: liveReset, again: liveAgain },
   GEO, HAS_LIVE: typeof LIVE !== 'undefined',

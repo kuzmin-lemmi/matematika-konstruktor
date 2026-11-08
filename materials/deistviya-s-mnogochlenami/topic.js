@@ -5,10 +5,12 @@
 // ================= Параметры: учитель может поменять их за минуту =================
 const CONFIG = {
   board: {
+    shows: ['warmup', 'truefalse', 'errors'],   // показы в меню — знаки при вычитании и потерянный средний член
     a: 2, b: 3,            // первый пример на доске: прямоугольник (x + 2)(x + 3)
     previewDelay: 1700,   // превью на сайте: пауза между шагами, мс
   },
   print: {
+    formats: ['word', 'exit', 'test'],   // листы в меню — знаки при вычитании и потерянный средний член
     variants: 25,         // сколько вариантов печатать по умолчанию
     traps: 2,             // сколько ответов-ловушек на задание в таблице букв
     space: true,          // сетка для решения под каждым заданием
@@ -289,23 +291,35 @@ function boardExample(random, old) {
 }
 // Подписи на чертеже — SVG-текст: курсив через tspan (тег <i> в SVG не работает)
 const si = v => `<tspan font-style="italic">${v}</tspan>`;
-const BX = 80, BY = 70, XU = 100, UU = 22;   // x — квадрат 100, единица — 22 пикселя
-const blines = (lines, y0 = 80) => lines.map((l, i) =>
-  `<g class="${l.cls || ''}">${tx(560, y0 + i * 54, l.t, 'lab s' + (l.lc ? ' ' + l.lc : ''), 'start')}</g>`).join('');
-// Прямоугольник (X0 + a)(X0 + b): четыре части — x², ax, bx, ab
+const BX = 110, BY = 56, XU = 150, UU = 30;   // x — квадрат 150, единица — 30 (стороны до x + 6 помещаются в 400)
+// строки выкладки: справа от чертежа (x0 = 500) или крупно на всю доску (x0 < 300, кегль .lab)
+const blines = (lines, y0 = 80, x0 = 500) => lines.map((l, i) =>
+  `<g class="${l.cls || ''}">${tx(x0, y0 + i * (x0 < 300 ? 70 : 54), l.t, (x0 < 300 ? 'lab' : 'lab s') + (l.lc ? ' ' + l.lc : ''), 'start')}</g>`).join('');
+const hl = s => `<tspan style="fill:var(--b)">${s}</tspan>`;   // знак, который поменялся
+const ax = k => k === 1 ? si('x') : `${k}${si('x')}`;
+// Прямоугольник (x + a)(x + b): стороны подписаны снаружи (длины), части — внутри (площади): x², ax, bx, ab.
+// b = 0 — одночлен на многочлен: x(x + a), части x² и ax. opt.show — площади частей, opt.lost — выделить средние части
 function areaScene(a, b, lines = [], opt = {}) {
-  const x = BX, y = BY, wA = a * UU, wB = b * UU, W = XU, H = XU;
+  const x = BX, y = BY, wA = a * UU, wB = b * UU, W = XU, H = XU, q = opt.show ? s => s : () => '?';
+  const mid = opt.lost ? 'gs' : 'gw';
   let s = `<rect class="gs" x="${x}" y="${y}" width="${W}" height="${H}"/>` +
-    `<rect class="gw" x="${x + W}" y="${y}" width="${wA}" height="${H}"/>` +
-    `<rect class="gw" x="${x}" y="${y + H}" width="${W}" height="${wB}"/>` +
+    `<rect class="${mid}" x="${x + W}" y="${y}" width="${wA}" height="${H}"/>`;
+  if (b) s += `<rect class="${mid}" x="${x}" y="${y + H}" width="${W}" height="${wB}"/>` +
     `<rect class="ge" x="${x + W}" y="${y + H}" width="${wA}" height="${wB}"/>` +
-    `<line class="gf" x1="${x + W}" x2="${x + W}" y1="${y}" y2="${y + H + wB}"/>` +
     `<line class="gf" x1="${x}" x2="${x + W + wA}" y1="${y + H}" y2="${y + H}"/>`;
-  s += under(x, y + H + wB, W, `${si('x')}²`, 'warm');
-  s += under(x + W, y + H + wB, wA, opt.show ? `${a}${si('x')}` : '?', 'warm');
-  s += tx(x - 12, y + H / 2, si('x'), 'lab s warm', 'end');
-  s += tx(x - 12, y + H + wB / 2, opt.show ? String(b) : '?', 'lab s warm', 'end');
-  if (opt.show) s += tx(x + W + wA / 2, y + H + wB / 2, `${a * b}`, 'lab s acc', 'middle');
+  s += `<rect class="gf" x="${x}" y="${y}" width="${W + wA}" height="${H + wB}"/>` +
+    `<line class="gf" x1="${x + W}" x2="${x + W}" y1="${y}" y2="${y + H + wB}"/>`;
+  // длины сторон
+  s += tx(x + W / 2, y - 14, si('x'), 'lab s warm', 'middle') + tx(x + W + wA / 2, y - 14, String(a), 'lab s warm', 'middle');
+  s += tx(x - 14, y + H / 2 + 10, si('x'), 'lab s warm', 'end');
+  if (b) s += tx(x - 14, y + H + wB / 2 + 10, String(b), 'lab s warm', 'end');
+  // площади частей
+  s += tx(x + W / 2, y + H / 2 + 13, `${si('x')}²`, 'lab', 'middle');
+  s += tx(x + W + wA / 2, y + H / 2 + 11, q(ax(a)), 'lab s' + (opt.lost ? ' warm' : ''), 'middle');
+  if (b) {
+    s += tx(x + W / 2, y + H + wB / 2 + 11, q(ax(b)), 'lab s' + (opt.lost ? ' warm' : ''), 'middle');
+    s += tx(x + W + wA / 2, y + H + wB / 2 + 11, q(String(a * b)), 'lab s', 'middle');
+  }
   return s + blines(lines);
 }
 // Живая модель: стороны a и b двигаются, go — раскрытие ответа
@@ -318,83 +332,114 @@ const LIVE = {
   },
   ok: m => m.a >= 1 && m.b >= 1,
 };
+// Сложение и вычитание столбиком: члены с x — в одном столбце, числа — в другом
+function columnsScene(rows, result) {
+  const C1 = 470, C2 = 640;   // правые края столбцов
+  let s = tx(C1, 50, `с ${si('x')}`, 'lab s soft', 'end') + tx(C2, 50, 'числа', 'lab s soft', 'end');
+  rows.forEach(([note, p, c], i) => {
+    const y = 120 + i * 80;
+    if (note) s += tx(90, y, note, 'lab s soft', 'start');
+    s += tx(C1, y, p, 'lab', 'end') + tx(C2, y, c, 'lab', 'end');
+  });
+  const yl = 120 + rows.length * 80 - 50;
+  s += `<line class="gf" x1="${C1 - 150}" x2="${C2 + 20}" y1="${yl}" y2="${yl}"/>`;
+  if (result) s += `<g class="new">${tx(C1, yl + 56, result[0], 'lab acc', 'end') + tx(C2, yl + 56, result[1], 'lab acc', 'end')}</g>`;
+  return s;
+}
+// Таблица «каждый на каждый»: строки — члены первой скобки, столбцы — второй; отрицательные произведения — цветом
+function tableScene(rowsT, colsT, cells, show, lines = []) {
+  const x0 = 110, y0 = 40, cw = 150, ch = 90;
+  let s = '';
+  for (let r = 0; r <= 2; r++) for (let c = 0; c <= 2; c++) {
+    const x = x0 + c * cw, y = y0 + r * ch, head = !r || !c;
+    s += `<rect class="${head ? 'gw' : 'ge'}" x="${x}" y="${y}" width="${cw}" height="${ch}"/><rect class="gf" x="${x}" y="${y}" width="${cw}" height="${ch}"/>`;
+    const t = !r && !c ? '·' : !r ? colsT[c - 1] : !c ? rowsT[r - 1] : show ? cells[r - 1][c - 1] : '?';
+    const neg = !head && show && String(t).startsWith(MINUS);
+    s += tx(x + cw / 2, y + ch / 2 + 13, t, 'lab' + (neg ? ' warm' : head ? '' : show ? ' acc' : ' soft'), 'middle');
+  }
+  return s + blines(lines, 90, 600);
+}
 function buildSteps(e) {
   const { a, b } = e;
   return [
     { q: `(3${si('x')} + 2) + (2${si('x')} + 5). Сколько получится?`,
-      a: `5${si('x')} + 7: складываем подобное с подобным.`,
-      note: 'Начало урока: складываем x с x, числа с числами. Спросите, почему 3x и 2 нельзя сложить.',
-      draw: () => '',
+      a: `5${si('x')} + 7: складываем подобное с подобным — иксы с иксами, числа с числами.`,
+      note: 'Начало урока: запишите столбиком, как на доске. Спросите, почему 3x и 2 нельзя сложить.',
+      draw: ph => columnsScene([['', `3${si('x')}`, '+ 2'], ['', `+ 2${si('x')}`, '+ 5']], ph ? [`5${si('x')}`, '+ 7'] : null),
       rec: ph => ph ? [`(3${si('x')} + 2) + (2${si('x')} + 5) = 5${si('x')} + 7`] : [] },
     { q: `А вычесть: (5${si('x')} + 4) ${MINUS} (2${si('x')} + 1)?`,
       a: `3${si('x')} + 3: минус меняет оба знака вычитаемого: 5${si('x')} + 4 ${MINUS} 2${si('x')} ${MINUS} 1.`,
-      note: 'Главная ловушка: минус относится к каждому члену, а не только к первому.',
-      draw: () => '',
+      note: 'Главная ловушка: минус относится к каждому члену, а не только к первому. Спросите, какие знаки будут во второй строке, до ответа.',
+      draw: ph => columnsScene([['', `5${si('x')}`, '+ 4'], [`${MINUS}(2${si('x')} + 1):`, ph ? `${hl(MINUS)} 2${si('x')}` : '?', ph ? `${hl(MINUS)} 1` : '?']],
+        ph ? [`3${si('x')}`, '+ 3'] : null),
       rec: ph => ph ? [`(5${si('x')} + 4) ${MINUS} (2${si('x')} + 1) = 3${si('x')} + 3`] : [] },
     { q: `Ловушка: (5${si('x')} + 4) ${MINUS} (2${si('x')} + 1) = 3${si('x')} + 5?`,
       a: `Нет: +1 тоже вычитается: 4 ${MINUS} 1 = 3, а не 5.`,
       note: 'Шаг-ловушка: забыли поменять знак у последнего члена.',
       draw: ph => blines(ph
-        ? [{ t: `4 ${MINUS} 1 = 3, а не 5`, cls: 'new', lc: 'acc' }]
-        : [{ t: `(5${si('x')} + 4) ${MINUS} (2${si('x')} + 1) = ?`, lc: 'warm' }]),
+        ? [{ t: `(5${si('x')} + 4) ${MINUS} (2${si('x')} + 1)` }, { t: `= 5${si('x')} + 4 ${hl(MINUS)} 2${si('x')} ${hl(MINUS)} 1`, cls: 'new' },
+           { t: `4 ${MINUS} 1 = 3, а не 5`, cls: 'new', lc: 'acc' }]
+        : [{ t: `(5${si('x')} + 4) ${MINUS} (2${si('x')} + 1) = 3${si('x')} + 5 ?`, lc: 'warm' }], 110, 110),
       rec: ph => ph ? [`минус меняет ВСЕ знаки`] : [] },
-    { q: `Умножим: (${si('x')} + ${a})(${si('x')} + ${b}). Чему равна площадь такого прямоугольника?`,
-      a: `Четыре части: ${si('x')}² + ${a}${si('x')} + ${b}${si('x')} + ${a * b} = ${si('x')}² + ${a + b}${si('x')} + ${a * b}.`,
-      note: 'Покажите четыре части. Средний член — это два прямоугольника сразу.',
-      draw: ph => areaScene(a, b, ph ? [{ t: `${si('x')}² + ${a + b}${si('x')} + ${a * b}`, cls: 'new', lc: 'acc' }] : [], { show: !!ph }),
+    { q: `Одночлен на многочлен: ${si('x')}(${si('x')} + 3). Чему равна площадь прямоугольника?`,
+      a: `Две части: ${si('x')} · ${si('x')} = ${si('x')}² и ${si('x')} · 3 = 3${si('x')}. Итого ${si('x')}² + 3${si('x')}: умножаем одночлен на каждый член.`,
+      note: 'Стороны — x и x + 3, площадь — две части. Это распределительное свойство: x(x + 3) = x · x + x · 3.',
+      draw: ph => areaScene(3, 0, ph ? [{ t: `${si('x')}(${si('x')} + 3) = ${si('x')}² + 3${si('x')}`, cls: 'new', lc: 'acc' }] : [], { show: !!ph }),
+      rec: ph => ph ? [`${si('x')}(${si('x')} + 3) = ${si('x')}² + 3${si('x')}`] : [] },
+    { q: `Многочлен на многочлен: (${si('x')} + ${a})(${si('x')} + ${b}). Чему равна площадь прямоугольника?`,
+      a: `Четыре части: ${si('x')}² + ${ax(a)} + ${ax(b)} + ${a * b} = ${si('x')}² + ${a + b}${si('x')} + ${a * b}.`,
+      note: 'Покажите четыре части. Средний член — это две полоски сразу: ax и bx.',
+      draw: ph => areaScene(a, b, ph ? [{ t: `${si('x')}² + ${ax(a)} + ${ax(b)} + ${a * b}`, cls: 'new' }, { t: `= ${si('x')}² + ${a + b}${si('x')} + ${a * b}`, cls: 'new', lc: 'acc' }] : [], { show: !!ph }),
       rec: ph => ph ? [`(${si('x')} + ${a})(${si('x')} + ${b}) = ${si('x')}² + ${a + b}${si('x')} + ${a * b}`] : [] },
-    { q: m => `Двигай стороны: ширина ${si('x')} + ${m.a}, высота ${si('x')} + ${m.b}. Что не меняется в ответе?`,
+    { q: m => `Двигай стороны: (${si('x')} + ${m.a})(${si('x')} + ${m.b}). Что не меняется в ответе?`,
       a: m => `Старший член всегда ${si('x')}², свободный — произведение чисел ${m.a} · ${m.b} = ${m.a * m.b}. А средний — сумма: (${m.a} + ${m.b})${si('x')}.`,
-      note: 'Тяните ручки сторон и двигайте ползунки. Вывод: средний член — сумма, свободный — произведение.',
+      note: 'Тяните углы прямоугольника или двигайте ползунки. Сначала спросите, каким станет ответ, потом двигайте. Вывод: средний член — сумма, свободный — произведение.',
       live: {
         enter(m) { m.a = a; m.b = b; m.go = 0; },
         reveal(m) { liveTo({ go: 1 }, 900); },
-        handles: m => {
-          const x = BX, y = BY;
-          return [
-            { id: 'a', at: { x: x + XU + m.a * UU, y: y + XU / 2 }, label: 'Ширина: число при x',
-              move(m, p) { m.a = Math.max(1, Math.min(6, Math.round((p.x - x - XU) / UU))); },
-              key(m, dx) { m.a += dx; } },
-            { id: 'b', at: { x: x + XU / 2, y: y + XU + m.b * UU }, label: 'Высота: число при x',
-              move(m, p) { m.b = Math.max(1, Math.min(6, Math.round((p.y - y - XU) / UU))); },
-              key(m, dx, dy) { m.b += dy; } },
-          ];
-        },
+        handles: m => [
+          { id: 'a', at: { x: BX + XU + m.a * UU, y: BY }, label: 'Ширина: число при x',
+            move(m, p) { m.a = Math.max(1, Math.min(6, Math.round((p.x - BX - XU) / UU))); },
+            key(m, dx) { m.a += dx; } },
+          { id: 'b', at: { x: BX, y: BY + XU + m.b * UU }, label: 'Высота: число при x',
+            move(m, p) { m.b = Math.max(1, Math.min(6, Math.round((p.y - BY - XU) / UU))); },
+            key(m, dx, dy) { m.b += dy; } },
+        ],
         controls: () => [
-          { id: 'a', type: 'range', label: 'Первое число', min: 1, max: 6, get: m => m.a, set(m, v) { m.a = v; } },
-          { id: 'b', type: 'range', label: 'Второе число', min: 1, max: 6, get: m => m.b, set(m, v) { m.b = v; } },
+          { id: 'a', type: 'range', label: 'Ширина x +', min: 1, max: 6, get: m => m.a, set(m, v) { m.a = v; } },
+          { id: 'b', type: 'range', label: 'Высота x +', min: 1, max: 6, get: m => m.b, set(m, v) { m.b = v; } },
         ],
       },
       draw: (ph, m) => areaScene(m.a, m.b, (ph || m.go > 0.5)
-        ? [{ t: `${si('x')}² + ${m.a + m.b}${si('x')} + ${m.a * m.b}`, cls: 'new', lc: 'acc' }] : [], { show: ph || m.go > 0.5 }),
+        ? [{ t: `${si('x')}² + ${m.a + m.b}${si('x')} + ${m.a * m.b}`, cls: 'new', lc: 'acc' }] : [{ t: `${si('x')}² + ?${si('x')} + ?`, lc: 'soft' }], { show: ph || m.go > 0.5 }),
       rec: (ph, m) => ph ? [`(${si('x')} + ${m.a})(${si('x')} + ${m.b}) = ${si('x')}² + ${m.a + m.b}${si('x')} + ${m.a * m.b}`] : [] },
     { q: `Ловушка: (${si('x')} + ${a})(${si('x')} + ${b}) = ${si('x')}² + ${a * b}?`,
-      a: `Нет: потерян средний член ${a + b}${si('x')}. Проверка площадью: два прямоугольника никуда не делись.`,
-      note: 'Шаг-ловушка: самая частая ошибка умножения. Голосуйте, потом проверяйте.',
-      draw: ph => blines(ph
-        ? [{ t: `средний член ${a + b}${si('x')} потерян`, cls: 'new', lc: 'warm' },
-           { t: `${si('x')}² + ${a + b}${si('x')} + ${a * b}`, cls: 'new', lc: 'acc' }]
-        : [{ t: `(${si('x')} + ${a})(${si('x')} + ${b}) = ?`, lc: 'warm' }]),
+      a: `Нет: потерян средний член ${a + b}${si('x')}. Проверка площадью: две полоски никуда не делись.`,
+      note: 'Шаг-ловушка: самая частая ошибка умножения. Голосуйте, потом покажите полоски.',
+      draw: ph => areaScene(a, b, ph
+        ? [{ t: `полоски: ${ax(a)} + ${ax(b)} = ${a + b}${si('x')}`, cls: 'new', lc: 'warm' }, { t: `${si('x')}² + ${a + b}${si('x')} + ${a * b}`, cls: 'new', lc: 'acc' }]
+        : [{ t: `${si('x')}² + ${a * b} ?`, lc: 'warm' }], { show: !!ph, lost: !!ph }),
       rec: ph => ph ? [`средний член терять нельзя`] : [] },
-    { q: `Общий случай: (2${si('x')} + 1)(3${si('x')} + 4).`,
-      a: `6${si('x')}² + 11${si('x')} + 4: каждый на каждый, потом подобные.`,
-      note: 'Те же четыре произведения, только коэффициенты больше.',
-      draw: () => '',
+    { q: `Общий случай: (2${si('x')} + 1)(3${si('x')} + 4). Умножь каждый член на каждый.`,
+      a: `6${si('x')}² + 8${si('x')} + 3${si('x')} + 4 = 6${si('x')}² + 11${si('x')} + 4: каждый на каждый, потом подобные.`,
+      note: 'Таблица — та же площадь частями. Пусть класс заполнит клетки, потом приведёт подобные.',
+      draw: ph => tableScene([`2${si('x')}`, '+1'], [`3${si('x')}`, '+4'], [[`6${si('x')}²`, `8${si('x')}`], [`3${si('x')}`, '4']], ph,
+        ph ? [{ t: `= 6${si('x')}² + 11${si('x')} + 4`, cls: 'new', lc: 'acc' }] : []),
       rec: ph => ph ? [`(2${si('x')} + 1)(3${si('x')} + 4) = 6${si('x')}² + 11${si('x')} + 4`] : [] },
     { q: `А если минус: (${si('x')} ${MINUS} 2)(${si('x')} + 3)?`,
-      a: `${si('x')}² + ${si('x')} ${MINUS} 6: средний ${MINUS}2${si('x')} + 3${si('x')} = +${si('x')}, свободный ${MINUS}6.`,
-      note: 'Знаки умножаются как числа: минус на плюс — минус.',
-      draw: () => '',
+      a: `${si('x')}² + 3${si('x')} ${MINUS} 2${si('x')} ${MINUS} 6 = ${si('x')}² + ${si('x')} ${MINUS} 6: знак члена идёт вместе с ним.`,
+      note: 'Знаки умножаются как числа: минус на плюс — минус. Отрицательные клетки — цветом.',
+      draw: ph => tableScene([si('x'), `${MINUS}2`], [si('x'), '+3'], [[`${si('x')}²`, `3${si('x')}`], [`${MINUS}2${si('x')}`, `${MINUS}6`]], ph,
+        ph ? [{ t: `= ${si('x')}² + ${si('x')} ${MINUS} 6`, cls: 'new', lc: 'acc' }] : []),
       rec: ph => ph ? [`(${si('x')} ${MINUS} 2)(${si('x')} + 3) = ${si('x')}² + ${si('x')} ${MINUS} 6`] : [] },
     { q: 'Итог: как складывать, вычитать и умножать многочлены?',
-      a: 'Складывать и вычитать — подобное с подобным (минус меняет знаки). Умножать — каждый на каждый.',
+      a: 'Складывать и вычитать — подобное с подобным (минус меняет знаки). Умножать — каждый член на каждый, потом привести подобные.',
       note: 'Пусть класс повторит правила своими словами.',
       draw: () => '',
       rec: () => ['1. Сложение: подобное с подобным.', '2. Вычитание: минус меняет все знаки.', '3. Умножение: каждый на каждый.'] },
   ];
 }
-// превью на сайте крутит шаги до previewUntil (счёт с 0); картинка-превью — шаг poster с показанным ответом
-const BOARD = { previewUntil: 3, poster: 3 };
+const BOARD = { previewUntil: 4, poster: 4 };
 
 // Формулы в справке (help.html): ядро вызывает helpInit() при запуске
 function helpInit() {

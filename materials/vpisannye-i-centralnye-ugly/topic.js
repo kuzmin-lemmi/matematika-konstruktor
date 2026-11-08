@@ -5,10 +5,11 @@
 // ================= Параметры =================
 const CONFIG = {
   board: {
+    shows: ['warmup', 'dictation', 'truefalse'],   // показы в меню — как было при публикации
     a: 220, b: 320, c: 125,  // первый пример: дуга AB = 100°, вписанный угол 50°
     previewDelay: 2200,
   },
-  print: { variants: 25, traps: 1, space: false },
+  print: { formats: ['word', 'oge', 'exit', 'test', 'choice', 'pair', 'ladder', 'domino'], variants: 25, traps: 1, space: false },
   home: { round: 10, points: [10, 15, 20], hintPenalty: 3, maxMultiplier: 3 },
 };
 const GEN_VERSION = 1;

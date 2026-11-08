@@ -11,10 +11,14 @@
 const CONFIG = {
   maxN: 20,                 // ЗАМЕНИ: свои параметры заданий
   board: {
+    // ЗАМЕНИ: 2–3 показа, которые работают на эту тему (warmup, dictation, truefalse, errors); не всё, что умеет ядро
+    shows: ['dictation', 'truefalse'],
     a: -7, b: 3,            // первый пример на доске
     previewDelay: 1700,     // превью на сайте: пауза между шагами, мс
   },
   print: {
+    // ЗАМЕНИ: 2–4 листа (word, oge, exit, test, choice, pair, ladder, domino, errors и листы темы) — с причиной выбора
+    formats: ['word', 'exit', 'test'],
     variants: 25,           // сколько вариантов печатать по умолчанию
     traps: 2,               // сколько ответов-ловушек на задание в таблице букв
     space: true,            // сетка для решения под каждым заданием

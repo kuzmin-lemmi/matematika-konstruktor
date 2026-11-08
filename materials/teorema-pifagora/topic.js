@@ -1,5 +1,5 @@
 // Теорема Пифагора: доказательство перестановкой равных треугольников.
-const CONFIG = { board: { a: 3, b: 4, previewDelay: 2400, min: 2, max: 12 }, print: { variants: 25, traps: 1, space: false }, home: { round: 10, points: [10, 15, 15, 20], hintPenalty: 3, maxMultiplier: 3 } };
+const CONFIG = { board: { shows: ['warmup', 'dictation', 'truefalse'], a: 3, b: 4, previewDelay: 2400, min: 2, max: 12 }, print: { formats: ['word', 'oge', 'exit', 'test', 'choice', 'pair', 'ladder', 'domino'], variants: 25, traps: 1, space: false }, home: { round: 10, points: [10, 15, 15, 20], hintPenalty: 3, maxMultiplier: 3 } };
 const GEN_VERSION = 1;
 const bad = (cat, msg) => ({ cat, msg });
 const pyPoint = (x, y) => ({ x, y });

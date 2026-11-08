@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { buildTemplate, TEMPLATE } from './template.mjs';
 import { loadHtml } from '../tools/load.mjs';
 
-const html = buildTemplate().replace('print: {', 'print: { formats: ["test"], defaultKind: "test", label: "Самостоятельная", answerTable: true,')
+// в заготовке набор листов уже выбран — заменяем его одним листом
+const html = buildTemplate().replace(/formats: \[[^\]]*\],/, 'formats: ["test"], defaultKind: "test", label: "Самостоятельная", answerTable: true,')
   .replace('const PRINT = {', 'const PRINT = { testInstr: "Запиши вычисление.",');
 test('печать: выбранный формат открывается со старта и без параметров; лишних кнопок нет', t => {
   const m = loadHtml(html, { slug: TEMPLATE }); t.after(m.close);

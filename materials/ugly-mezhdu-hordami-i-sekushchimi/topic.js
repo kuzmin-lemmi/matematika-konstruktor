@@ -1,6 +1,6 @@
 // Углы между хордами и секущими. Числа дуг согласованы с координатами точек.
 const CONFIG = {
-  board: { a: 140, b: 60, gap: 80, previewDelay: 2600 },
+  board: { shows: ['dictation', 'truefalse'], a: 140, b: 60, gap: 80, previewDelay: 2600 },
   print: { variants: 25, traps: 1, space: true, formats: ['test'], defaultKind: 'test', label: 'Самостоятельная', answerTable: true },
   home: { round: 10, points: [10, 15, 20], hintPenalty: 3, maxMultiplier: 3 },
 };
