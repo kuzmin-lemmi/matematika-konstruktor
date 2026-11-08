@@ -91,7 +91,8 @@ const SHOWS = {
     },
   },
 };
-const showsAvailable = () => Object.entries(SHOWS).filter(([, s]) => s.available());
+// тема выбирает показы сама (CONFIG.board.shows): в меню — только они и только доступные
+const showsAvailable = () => Object.entries(SHOWS).filter(([k, s]) => s.available() && (!CONFIG.board.shows || CONFIG.board.shows.includes(k)));
 
 // переключение вида показа: 'main' — основной показ темы
 function boardUseShow(name) {

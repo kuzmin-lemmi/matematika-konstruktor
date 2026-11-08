@@ -11,7 +11,9 @@
 // step.live = {
 //   enter(m) { ... },           // как поставить модель при входе в шаг (можно liveTo — плавно)
 //   reveal(m) { ... },          // опыт по кнопке «Показать ответ» (обычно liveTo); «▶ Повторить опыт» запускает его снова
-//   handles: (m, phase) => [{ id, at: {x, y}, label, move(m, p) {...}, key?(m, dx, dy, fine), keyStep?, r? }],
+//   handles: (m, phase) => [{ id, at: {x, y}, label, move(m, p) {...}, key?(m, dx, dy, fine), keyStep?, r?, ring? }],
+//                               // ring: радиус кольца — для фишки с подписью (точка закрыла бы надпись);
+//                               // подпись под точкой-ручкой тест-контракт считает ошибкой
 //   controls: (m, phase) => [
 //     { id, type: 'range', label, min, max, step, get: m => …, set(m, v) {...}, text?: m => '…' },
 //     { id, type: 'toggle', label, get: m => true|false, set(m, v) {...} },
@@ -95,9 +97,11 @@ function liveStop() {
 // ---------- ручки на чертеже ----------
 function liveHandlesSVG(st) {
   LV.handles = st.live?.handles ? st.live.handles(B.m, B.phase).filter(Boolean) : [];
+  // ring: ручка — кольцо вокруг фишки с подписью (подпись видна сквозь него); иначе — точка
   return LV.handles.map(h => `<g class="lv-h${h.cls ? ' ' + h.cls : ''}" data-handle="${h.id}" tabindex="0" role="button" ` +
     `aria-label="${esc(h.label)}: тяните или двигайте стрелками" transform="translate(${GEO.f1(h.at.x)} ${GEO.f1(h.at.y)})">` +
-    `<title>${esc(h.label)}</title><circle class="lv-hit" r="44"/><circle class="lv-dot" r="${h.r || 18}"/></g>`).join('');
+    `<title>${esc(h.label)}</title><circle class="lv-hit" r="${h.ring ? Math.max(44, h.ring + 8) : 44}"/>` +
+    (h.ring ? `<circle class="lv-ring" r="${h.ring}"/>` : `<circle class="lv-dot" r="${h.r || 18}"/>`) + '</g>').join('');
 }
 const liveBox = { x: 0, y: 0, w: BW, h: BH };
 // перетащить ручку id в точку p (координаты чертежа); false — положение вырождено и не принято
