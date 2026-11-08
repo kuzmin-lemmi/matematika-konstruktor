@@ -1,0 +1,50 @@
+/* Дуги различаются цветом и типом линии; формулировки называют их буквами. */
+.hs-circle{fill:none;stroke:var(--ink);stroke-width:2;opacity:.6}
+.hs-line{fill:none;stroke:var(--ink);stroke-width:3;stroke-linecap:round}
+.hs-arc{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round}
+.hs-arc.second,.hs-arc.near{stroke:var(--b);stroke-dasharray:9 5}
+.hs-sector{fill:var(--accent);opacity:.15}
+.hs-mark{fill:none;stroke:var(--accent);stroke-width:3}
+.hs-aux{fill:none;stroke:var(--b);stroke-width:3;stroke-dasharray:10 6}
+.hs-dot{fill:var(--ink)}
+.hs-letter,.hs-value,.hs-proof{fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:7px;stroke-linejoin:round}
+.hs-letter{font-size:29px;font-weight:700;font-style:italic}
+.hs-value{font-size:29px;font-weight:800}
+.hs-proof{font-size:28px;font-weight:700}
+.hs-b .hs-letter{font-size:30px}
+.hs-b .hs-value{font-size:30px}
+.hs-panel{fill:var(--ink)}
+.hs-caption{font-size:28px;font-weight:800;fill:var(--accent)}
+.hs-board-text{font-size:28px;font-weight:600}
+.hs-result{font-size:36px;font-weight:800;fill:var(--accent)}
+.hs-task{display:block;width:100%;max-width:420px;max-height:260px;margin:0 auto}
+.hs-question{font-size:clamp(19px,2.6vw,25px);line-height:1.4;margin:8px 0}
+/* Самостоятельная: шесть чертежей в два столбца, место для записи и общая таблица. */
+.test-work .tasks.one{grid-template-columns:1fr 1fr;gap:4mm 6mm}
+.test-work .task{font-size:12pt;line-height:1.25}
+.test-work .hs-task{height:35mm;max-height:35mm;margin:0 auto 1mm}
+.test-work .hs-question{font-size:12pt;line-height:1.25;margin:0 0 1mm}
+.test-work .cells{height:12mm}
+.test-work .pts{display:block;margin-top:1mm}
+.test-work .sheet{gap:3mm}
+.test-work .sheet > h2{font-size:15pt}
+.test-work .instr{font-size:11pt;line-height:1.25}
+.test-work svg{--ink:#000;--accent:#000;--b:#000;--bg:#fff}
+.test-work.half .tasks.one{grid-template-columns:repeat(3,minmax(0,1fr));gap:2mm 4mm}
+.test-work.half .hs-task{height:24mm;max-height:24mm}
+.test-work.half .hs-question{font-size:12pt;line-height:1.15}
+.test-work.half .pts{font-size:9pt;margin-top:.5mm}
+.test-work.half .instr{font-size:10pt}
+.test-work.half .sheet > h2{font-size:12pt}
+.test-work.half .sheet{gap:2mm}
+.test-work.half .ans{font-size:10pt}
+.test-work.half .ans th,.test-work.half .ans td{padding:1mm 2mm}
+.test-work.half .ans .tall td{height:6mm}
+.test-work.half .otv{display:none}
+@media(max-width:600px){
+  #home .hs-task{max-height:220px}
+  .hs-question{font-size:19px}
+  #home .inrow{font-size:21px;gap:8px}
+  #home .inrow input.wide{width:80px}
+  #home .inrow .check{font-size:18px;padding:.5em .6em}
+}

@@ -30,6 +30,7 @@ const copy = (from, to) => {
 mkdirSync(dir, { recursive: true });
 copy('material.json', join(dir, 'material.json'));
 copy('topic.js', join(dir, 'topic.js'));
+copy('expected.mjs', join(dir, 'expected.mjs'));
 copy('help.html', join(dir, 'help.html'));
 
 const cfg = readConfig();

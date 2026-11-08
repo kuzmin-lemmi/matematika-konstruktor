@@ -1,5 +1,5 @@
 // Теорема Пифагора: доказательство перестановкой равных треугольников.
-const CONFIG = { board: { a: 3, b: 4, previewDelay: 2400, min: 2, max: 12 }, print: { variants: 25, traps: 1, space: false }, home: { round: 10, points: [10, 15, 15, 20], hintPenalty: 3, maxMultiplier: 3 } };
+const CONFIG = { board: { shows: ['warmup', 'dictation', 'truefalse'], a: 3, b: 4, previewDelay: 2400, min: 2, max: 12 }, print: { formats: ['word', 'oge', 'exit', 'test', 'choice', 'pair', 'ladder', 'domino'], variants: 25, traps: 1, space: false }, home: { round: 10, points: [10, 15, 15, 20], hintPenalty: 3, maxMultiplier: 3 } };
 const GEN_VERSION = 1;
 const bad = (cat, msg) => ({ cat, msg });
 const pyPoint = (x, y) => ({ x, y });
@@ -91,7 +91,7 @@ const TYPES = {
     hints: t => ['Сначала найди прямой путь, затем вычти его из пути через угол.', `Прямой путь ${t.c} м; прежний путь ${t.a} + ${t.b} м.`], traps: t => numTraps([t.c, t.a + t.b], t.a + t.b - t.c),
   },
   apply: {
-    input: 'choice', title: 'Условие применения', options: [['yes', 'Да'], ['no', 'Нет'], ['unknown', 'Недостаточно данных']],
+    input: 'choice', title: 'Условие применения', oral: true, options: [['yes', 'Да'], ['no', 'Нет'], ['unknown', 'Недостаточно данных']],
     gen: rnd => ({ form: pick(rnd, ['right', 'oblique', 'unknown']), a: int(rnd, 2, 10), b: int(rnd, 2, 10) }), text: () => 'Верно ли AB² = AC² + BC²?',
     ask: t => `<p class="p-question">${TYPES.apply.given(t)} AC = ${t.a}, BC = ${t.b}. Можно ли утверждать AB² = AC² + BC²?</p>`, sheet: t => `<p>${TYPES.apply.given(t)} Верно ли AB² = AC² + BC²? Да / нет / недостаточно.</p>`,
     given: t => ({ right: '∠C = 90°.', oblique: '∠C = 60°.', unknown: 'Угол C не указан.' })[t.form], ans: t => ({ right: 'yes', oblique: 'no', unknown: 'unknown' })[t.form],

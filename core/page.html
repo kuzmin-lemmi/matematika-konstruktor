@@ -43,13 +43,17 @@
     <span class="cnt" id="bCnt"></span>
     <button type="button" data-act="restart" title="С первого шага" aria-label="Заново">↺<span class="t"> Заново</span></button>
     <button type="button" data-act="numbers" title="Тот же показ с другими числами" aria-label="Другие числа">🎲<span class="t"> Другие числа</span></button>
+    <button type="button" id="bTimer" data-act="timer" aria-pressed="false" title="Таймер задания" hidden>⏱</button>
     <button type="button" data-act="notes" id="bNotesBtn" aria-pressed="false" title="Что сказать на этом шаге. Подсказку видно и на проекторе — включайте, когда нужно" aria-label="Подсказка учителю">💬<span class="t"> Учителю</span></button>
     <button class="icon" type="button" data-act="theme" title="Светлая или тёмная тема" aria-label="Сменить тему">◐</button>
     <button class="icon" type="button" data-act="full" title="Во весь экран (F)" aria-label="Во весь экран">⛶</button>
   </div>
   <div class="btext" aria-live="polite"><div class="q" id="bQ"></div><div class="a" id="bA"></div></div>
-  <div class="bstage" id="bStage"></div>
-  <div class="blive" id="bLive" role="group" aria-label="Управление чертежом" hidden></div>
+  <!-- панель чертежа — колонкой справа: чертёж 980 × 400 шире экрана по пропорциям, высота остаётся ему -->
+  <div class="bmid">
+    <div class="bstage" id="bStage"></div>
+    <div class="blive" id="bLive" role="group" aria-label="Управление чертежом" hidden></div>
+  </div>
   <div class="brec"><span class="rt-h">Запись в тетради</span><div id="bRec"></div></div>
   <div class="bctl">
     <button type="button" data-act="prev" title="Назад (←, PageUp)">← Назад</button>

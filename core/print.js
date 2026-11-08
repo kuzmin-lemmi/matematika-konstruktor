@@ -93,12 +93,40 @@ function ogeKeyHTML(vs) {
     </table><p style="font-size:10pt">Ответ верен, если совпадает с ключом (запятая или точка — одинаково). Ключ всегда можно восстановить
     по номеру варианта: режим «Раздатка», вид листа «Бланк ответов».</p></div>`;
 }
+// Диагностика ловушек: какую ошибку означает буква-ловушка. Тема ничего не пишет: категорию даёт T.wrong
+// по значению ловушки (или trap.cat, если тема его задала). Варианты не меняются — меняется только ключ.
+function trapCat(t, trap) {
+  if (trap.cat) return trap.cat;
+  const T = TYPES[t.type];
+  // число — разбираем ловушку как ответ; выбор и кнопки (T.opts) — ключ ловушки и есть ответ;
+  // остальные виды ввода (многочлен, одночлен) — только trap.cat от темы
+  const num = ['num', 'frac'].includes(T.input), pickLike = T.input === 'choice' || typeof T.opts === 'function';
+  if (!num && !pickLike) return null;
+  try {
+    const x = num ? parseQ(trap.key) : trap.key;
+    if (!x) return null;
+    const r = T.wrong(t, x);
+    return r && r.cat !== 'calc' ? r.cat : null;   // «вычисления» — не типичная ошибка, в расшифровку не идёт
+  } catch { return null; }
+}
+const catName = c => (CATS[c] || [c])[0];
+// для каждого задания варианта: [{ letter, cat }] — буквы ловушек из таблицы букв этого варианта
+function trapLetters(v) {
+  const letter = new Map(v.bank.map(b => [b.key, b.letter]));
+  return v.tasks.map((t, i) => (TYPES[t.type].traps?.(t) || []).slice(0, CONFIG.print.traps)
+    .filter(x => x.key !== v.answers[i] && letter.has(x.key))
+    .map(x => ({ letter: letter.get(x.key), cat: trapCat(t, x) })).filter(x => x.cat));
+}
 function keyHTML(vs) {
   const head = vs[0].tasks.map((_, i) => `<th>${i + 1}</th>`).join('');
+  const traps = vs.map(trapLetters), cats = [...new Set(traps.flat(2).map(x => x.cat))], no = c => cats.indexOf(c) + 1;
+  const cell = (t, x) => TYPES[t.type].keyHTML(t) + (x.length ? `<span class="trp">${x.map(y => `${y.letter}<sup>${no(y.cat)}</sup>`).join(' ')}</span>` : '');
   return `<div class="page key"><h2>Ключ учителя · ${lowerTitle()}</h2>
     <table class="key"><thead><tr><th>Вариант</th>${head}<th>Слово</th></tr></thead>
-    ${vs.map(v => `<tr><td>${v.label}</td>${v.tasks.map(t => `<td>${TYPES[t.type].keyHTML(t)}</td>`).join('')}<td><b>${v.word}</b></td></tr>`).join('')}
-    </table><p style="font-size:10pt">Слово сложилось — все ответы верны. Ключ всегда можно восстановить по номеру варианта в режиме «Раздатка».</p></div>`;
+    ${vs.map((v, k) => `<tr><td>${v.label}</td>${v.tasks.map((t, i) => `<td>${cell(t, traps[k][i])}</td>`).join('')}<td><b>${v.word}</b></td></tr>`).join('')}
+    </table><p style="font-size:10pt">Слово сложилось — все ответы верны. Ключ всегда можно восстановить по номеру варианта в режиме «Раздатка».</p>
+    ${cats.length ? `<div class="diag"><b>Буквы-ловушки.</b> Под ответом — буквы, которые получаются при типичной ошибке, с номером ошибки:
+      <ol>${cats.map(c => `<li>${catName(c)}</li>`).join('')}</ol></div>` : ''}</div>`;
 }
 // Номера и настройки запоминаются в браузере: напечатал листы, закрыл вкладку — ключ потом
 // печатается по тем же номерам. Без localStorage номера просто будут новыми.
@@ -109,15 +137,16 @@ function renderPrint() {
     $('pCount').value = printNums.length;
     $('pSpace').checked = store.get('printSpace') ? store.get('printSpace') === '1' : CONFIG.print.space;
     $('pTwo').checked = store.get('printTwo') === '1';
-    $('pKind').value = SHEETS[store.get('printKind')] ? store.get('printKind') : 'word';
+    $('pKind').value = printFormatChoices().some(([k]) => k === store.get('printKind')) ? store.get('printKind') : defaultPrintKind();
     if (saved.length) $('pMsg').textContent = 'Открыты номера, с которыми вы работали в прошлый раз. Для другого класса нажмите «Новые номера».';
   }
-  if (pendingKind) { $('pKind').value = SHEETS[pendingKind] ? pendingKind : 'word'; pendingKind = null; }
+  if (pendingKind) { $('pKind').value = SHEETS[pendingKind] ? pendingKind : defaultPrintKind(); pendingKind = null; }
   $('pNums').value = printNums.map(n => typeof n === 'string' ? n : GEN_VERSION + '-' + n).join(', ');
   drawSheets();
 }
 function drawSheets() {
-  const kind = SHEETS[$('pKind').value] ? $('pKind').value : 'word';
+  const kind = SHEETS[$('pKind').value] ? $('pKind').value : defaultPrintKind();
+  $('pKind').value = kind;
   const format = SHEETS[kind];
   document.querySelectorAll('[data-kind-set]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kindSet === $('pKind').value)));
   const vs = printNums.map(n => printVariant(n, kind));
@@ -134,7 +163,11 @@ function drawSheets() {
   let html = '';
   if (two) for (let i = 0; i < vs.length; i += 2)
     html += `<div class="page half compact ${format.pageClass || ''}">${sheet(vs[i])}${vs[i + 1] ? sheet(vs[i + 1]) : ''}</div>`;
-  else html = vs.map(v => `<div class="page ${format.pageClass || ''}${space ? '' : ' compact'}">${sheet(v)}</div>`).join('');
+  else if (format.perPage) for (let i = 0; i < vs.length; i += format.perPage)
+    html += `<div class="page ${format.pageClass || ''}">${vs.slice(i, i + format.perPage).map(v => sheet(v)).join('')}</div>`;
+  // flow — лист может занять больше страницы (сетка для решения, длинные задания): при печати он переносится,
+  // а не обрезается по высоте A4; задание не разрывается (.task — break-inside: avoid)
+  else html = vs.map(v => `<div class="page ${format.pageClass || ''}${space ? '' : ' compact'}${space || format.flow ? ' flow' : ''}">${sheet(v)}</div>`).join('');
   $('pSheets').innerHTML = (vs.length ? key(vs) : '') + html;
   fitKeys();
   return vs;
@@ -166,28 +199,43 @@ function printNow(what) {
 const SHEETS = {
   word: { label: 'Кодовое слово', about: PRINT.about, generate: wordVariantV1, sheet: sheetHTML, key: keyHTML },
   ...(HAS_OGE ? { oge: { label: 'Бланк ОГЭ', about: PRINT.ogeAbout, generate: ogeVariantV1, sheet: ogeSheetHTML, key: ogeKeyHTML } } : {}),
+  // форматы ядра (core/formats.js); если у темы есть свой лист с тем же названием (билет на выход), остаётся её лист
+  ...Object.fromEntries(Object.entries(CORE_SHEETS).filter(([, f]) => typeof TOPIC_SHEETS === 'undefined' || !Object.values(TOPIC_SHEETS).some(x => x.label === f.label))),
   ...(typeof TOPIC_SHEETS === 'undefined' ? {} : TOPIC_SHEETS),
 };
 const PRINT_GENERATORS = { 1: Object.fromEntries(Object.entries(SHEETS).map(([k, f]) => [k, f.generate])),
   ...(typeof TOPIC_PRINT_VERSIONS === 'undefined' ? {} : TOPIC_PRINT_VERSIONS) };
+// форматы ядра зависят только от версии, а не от темы: дополняем ими и версии, которые тема описала сама
+for (const gens of Object.values(PRINT_GENERATORS)) for (const [k, f] of Object.entries(CORE_SHEETS)) gens[k] = gens[k] || f.generate;
 function printVariant(num, kind = 'word', version = GEN_VERSION) {
   if (typeof num === 'string' && num.includes('-')) { const parts = num.split('-'); version = +parts[0]; num = +parts[1]; }
   const gen = PRINT_GENERATORS[version]?.[kind];
   if (!gen) throw new Error('Нет генератора формата ' + kind + ' версии ' + version);
-  return gen(num);
+  return gen(num, version);
 }
 function makeVariant(num, version = GEN_VERSION) { return printVariant(num, 'word', version); }
 function makeVariantOGE(num, version = GEN_VERSION) { return printVariant(num, 'oge', version); }
+// Тема может оставить в меню нужные форматы; генераторы остальных доступны для старых номеров и тестов.
+function printFormatChoices() {
+  if (!CONFIG.print.formats) return Object.entries(SHEETS);
+  const choices = CONFIG.print.formats.map(k => [k, SHEETS[k]]).filter(([, f]) => f);
+  if (!choices.length) throw new Error('CONFIG.print.formats: нет известного формата печати');
+  return choices;
+}
+function defaultPrintKind() {
+  const choices = printFormatChoices();
+  return choices.some(([k]) => k === CONFIG.print.defaultKind) ? CONFIG.print.defaultKind : choices[0][0];
+}
 function initPrintFormats() {
-  const choices = Object.entries(SHEETS);
+  const choices = printFormatChoices();
   const input = $('pKind');
   const old = input.closest('.row');
   if (old) { old.before(input); old.remove(); }
-  input.insertAdjacentHTML('beforebegin', '<div class="row"><b>Вид листа:</b><div class="seg" role="group" aria-label="Вид листа">' + choices.map(([k, f]) => '<button type="button" data-kind-set="' + k + '" aria-pressed="' + (k === 'word') + '">' + esc(f.label) + '</button>').join('') + '</div></div>');
+  if (choices.length > 1) input.insertAdjacentHTML('beforebegin', '<div class="row"><b>Вид листа:</b><div class="seg" role="group" aria-label="Вид листа">' + choices.map(([k, f]) => '<button type="button" data-kind-set="' + k + '" aria-pressed="' + (k === defaultPrintKind()) + '">' + esc(f.label) + '</button>').join('') + '</div></div>');
   const start = document.querySelector('#start [data-go="print"]')?.closest('.mode');
   if (start) {
     const box = document.createElement('div'); box.className = 'mode split';
-    box.innerHTML = '<b>🖨 Раздатка</b><span>' + esc(META.modePrint) + '</span><div class="kinds">' + choices.map(([k, f]) => '<button type="button" data-go="print" data-kind="' + k + '">' + esc(f.label) + '</button>').join('') + '</div>';
+    box.innerHTML = '<b>🖨 ' + esc(CONFIG.print.label || 'Раздатка') + '</b><span>' + esc(META.modePrint) + '</span><div class="kinds">' + choices.map(([k, f]) => '<button type="button" data-go="print" data-kind="' + k + '">' + esc(f.label) + '</button>').join('') + '</div>';
     start.replaceWith(box);
   }
   $('pPrintKey').insertAdjacentHTML('afterend', '<button type="button" id="pExtraKey" aria-expanded="false" hidden>Показать ключ</button>');

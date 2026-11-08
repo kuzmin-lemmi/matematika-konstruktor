@@ -4,10 +4,12 @@
 // ================= Параметры: учитель может поменять их за минуту =================
 const CONFIG = {
   board: {
+    shows: ['warmup', 'dictation', 'truefalse'],   // показы в меню — как было при публикации
     a: 6, c: 9, p: 22,   // задача на доске: A₁B₁ = 6 см, B₁C₁ = 9 см, P(△A₁B₁C₁) = 22 см → A₁C₁ = 7 см
     previewDelay: 1900,  // превью на сайте: пауза между шагами, мс
   },
   print: {
+    formats: ['word', 'test', 'choice', 'pair', 'ladder', 'domino', 'proofs', 'ticket'],   // листы в меню — как было при публикации
     variants: 25,        // сколько вариантов печатать по умолчанию
     traps: 1,            // одна типичная ошибка на задание: таблица помещается и на половине A4
     space: false,        // задание — чертёж и короткая запись: сетка для решения по умолчанию не нужна
@@ -246,7 +248,7 @@ function enoughSVG(t) {
 const TYPES = {
   // по чертежу определить, по какому признаку равны треугольники
   which: {
-    input: 'choice', title: 'Какой признак?', options: SIGN_OPTS,
+    input: 'choice', title: 'Какой признак?', oral: true, options: SIGN_OPTS,
     gen: rnd => {
       const kind = pick(rnd, ['s1', 's2', 's3']);
       const v = kind === 's1' ? pick(rnd, ['A', 'B', 'C']) : kind === 's2' ? pick(rnd, ['AB', 'BC', 'CA']) : '';
@@ -755,7 +757,7 @@ function buildSteps(e) {
     draw: ph => ph
       ? tri1() + bMarks([['AB', 1], ['CA', 2]], [['A', 1]], false) +
         `<g class="new"><path class="gx" d="${triPath({ A: BT.A, B: BT.B, C: Cm })}"/>` +
-        tx(490, 378, `${vname('A1')} → A, ${vname('B1')} → B (перевернули)`, 'lab s warm') + '</g>'
+        tx(960, 300, `${vname('A1')} → A, ${vname('B1')} → B (перевернули)`, 'lab s warm', 'end') + '</g>'
       : bPair() + bMarks([['AB', 1], ['CA', 2]], [['A', 1]]),
     rec: ph => ph ? [`наложение: ${hname('A1')} → A, ${hname('B1')} → B (перевернули)`] : [],
   });

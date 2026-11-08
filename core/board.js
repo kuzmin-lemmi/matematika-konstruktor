@@ -2,7 +2,7 @@
 // На экране — то, что видит класс: короткий вопрос, ответ, чертёж и запись в тетради.
 // Что сказать словами — в подсказке учителю (кнопка «💬 Учителю»).
 const BW = 980, BH = 400;
-const B = { e: null, m: {}, steps: [], i: 0, phase: 0, timer: 0, notes: false };
+const B = { e: null, m: {}, steps: [], i: 0, phase: 0, timer: 0, notes: false, show: 'main' };
 // q, a, note и rec шага могут быть строкой или функцией (m — модель живой доски, phase — 0 вопрос, 1 ответ)
 const stepVal = (x, ...args) => typeof x === 'function' ? x(...args) : x;
 const setHTML = (el, s) => { if (el.innerHTML !== s) el.innerHTML = s; };
@@ -42,6 +42,13 @@ function numLine(y, a, b, step, labelEvery, hl, cls = '') {
 //  live — что можно двигать и менять на этом шаге (core/live.js)}
 function boardNumbers(random) {
   liveStop();
+  if (B.show !== 'main') {   // разминка, диктант и другие виды показа — core/shows.js
+    B.e = { seed: random ? (Math.random() * 4294967296) >>> 0 : 1 };
+    B.steps = SHOWS[B.show].steps(B.e.seed);
+    B.m = {}; B.i = 0; B.phase = 0; LV.entered = false;
+    liveEnter();
+    return;
+  }
   B.e = boardExample(random, B.e || {});
   B.steps = buildSteps(B.e);
   B.m = liveModel(B.e);
@@ -66,6 +73,7 @@ function renderBoard() {
   $('bNext').textContent = ph === 0 ? 'Показать ответ' : 'Далее →';
   $('bNext').disabled = B.i === B.steps.length - 1 && ph === 1;
   liveRenderControls(st);
+  boardTimerSync();
 }
 function boardNext() {
   if (B.phase === 0) { liveStop(); B.phase = 1; renderBoard(); liveReveal(); }

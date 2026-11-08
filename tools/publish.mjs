@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { ROOT, readConfig, outFile, materialDir, isSlug } from './paths.mjs';
 import { buildMaterial } from './build.mjs';
-import { frozen } from './snapshot.mjs';
+import { frozen, snapVersioned, snapLegacy } from './snapshot.mjs';
 import { publicationFiles, foreignFiles } from './publication-files.mjs';
 
 const MODE = process.argv[2];   // check | publish
@@ -145,16 +145,28 @@ else {
 
 // ---------- 6. GitHub Pages ----------
 step('Запускаю публикацию на GitHub Pages');
-const before = sh('gh run list --workflow deploy.yml --limit 1 --json databaseId -q ".[0].databaseId"', SITE, { quiet: true }).trim();
+// У промежуточного кэша API статус может оставаться queued после завершения задания.
+// Каждый опрос имеет уникальный URL; статус читается прямо из REST, без gh run watch.
+const repo = sh('gh repo view --json nameWithOwner -q .nameWithOwner', SITE, { quiet: true }).trim();
+const freshGitHub = path => JSON.parse(sh(`gh api "repos/${repo}/${path}${path.includes('?') ? '&' : '?'}nocache=${Date.now()}" -H "Cache-Control: no-cache"`, SITE, { quiet: true }));
+const latestRun = () => String(freshGitHub('actions/workflows/deploy.yml/runs?per_page=1').workflow_runs[0]?.id || '');
+const before = latestRun();
 sh('gh workflow run deploy.yml --ref main', SITE, { quiet: true });
 let runId = before;
 for (let i = 0; i < 30 && runId === before; i++) {
   execSync(process.platform === 'win32' ? 'ping -n 3 127.0.0.1 > nul' : 'sleep 2');
-  runId = sh('gh run list --workflow deploy.yml --limit 1 --json databaseId -q ".[0].databaseId"', SITE, { quiet: true }).trim();
+  runId = latestRun();
 }
 if (runId === before) fail('Публикация не запустилась — проверь Actions на GitHub.');
 log(`… жду завершения (run ${runId}, обычно около минуты)`);
-sh(`gh run watch ${runId} --exit-status --interval 10`, SITE, { quiet: true });
+for (;;) {
+  const run = freshGitHub(`actions/runs/${runId}`);
+  if (run.status === 'completed') {
+    if (run.conclusion !== 'success') fail(`GitHub Pages: ${run.conclusion}. Подробности: ${run.html_url}`);
+    break;
+  }
+  await new Promise(r => setTimeout(r, 10000));
+}
 log('✓ GitHub Pages обновлён');
 
 // ---------- 7. Живой сайт ----------
@@ -174,18 +186,22 @@ log(`✓ ${SITE_URL}/item/${slug}/`);
 
 // ---------- 8. Заморозка вариантов ----------
 step('Замораживаю варианты темы в конструкторе');
-const genVersion = (readFileSync(join(materialDir(slug), 'topic.js'), 'utf8').match(/^const\s+GEN_VERSION\s*=\s*(\d+)/m) || [])[1];
-if (!genVersion) fail(`materials/${slug}/topic.js: не нашёл const GEN_VERSION`);
-const snapName = `${slug}.v${genVersion}.frozen.json`;
-const snap = join(ROOT, 'tests', 'snapshots', snapName);
-if (!existsSync(snap)) {
-  writeFileSync(snap, JSON.stringify(frozen(outFile(cfg, slug), slug, +genVersion)));
-  log(`✓ tests/snapshots/${snapName}`);
-} else log(`· снимок версии ${genVersion} уже есть — тест следит, чтобы варианты не менялись`);
+{
+  const snap = frozen(outFile(cfg, slug), slug);
+  const ver = snap.version;
+  const body = JSON.stringify(snap);
+  const targets = [snapVersioned(slug, ver), snapLegacy(slug)];
+  let created = [];
+  for (const target of targets) {
+    if (!existsSync(target)) { writeFileSync(target, body); created.push(target); }
+  }
+  if (created.length) log(`✓ ${created.map(f => f.split(/[\\/]/).slice(-2).join('/')).join(', ')}`);
+  else log('· снимки уже есть — тест следит, чтобы варианты не менялись (перезапись только: npm run snapshot -- ' + slug + ' --force)');
+}
 if (existsSync(join(ROOT, '.git'))) {
-  // коммитим только то, что относится к опубликованной теме: её файлы и снимок вариантов
+  // коммитим только то, что относится к опубликованной теме: её файлы и снимки вариантов (legacy + версионный)
   if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) fail('Индекс конструктора не пуст: отдельный коммит требуется до фиксации темы.');
-  sh(`git add -- "materials/${slug}" "tests/snapshots/${snapName}"`, ROOT, { quiet: true });
+  sh(`git add -- "materials/${slug}" "tests/snapshots/${slug}.frozen.json" "tests/snapshots/${slug}.v*.frozen.json"`, ROOT, { quiet: true });
   if (sh('git diff --cached --name-only', ROOT, { quiet: true }).trim()) {
     // В отдельной рабочей копии .git — файл; настоящий каталог сообщает сам Git.
     const msgFile = sh('git rev-parse --path-format=absolute --git-path MATSHAG_MSG', ROOT, { quiet: true }).trim();

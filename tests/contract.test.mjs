@@ -9,10 +9,12 @@ import { loadHtml } from '../tools/load.mjs';
 import { ROOT, isSlug } from '../tools/paths.mjs';
 import { TEMPLATE, buildTemplate } from './template.mjs';
 
-const SLUGS = readdirSync(join(ROOT, 'materials')).filter(isSlug);
+const SLUGS = readdirSync(join(ROOT, 'materials')).filter(isSlug).filter(s => !process.env.MATSHAG_CHECK_SLUG || s === process.env.MATSHAG_CHECK_SLUG);
 // заготовка новой темы проходит тот же контракт: npm run new даёт рабочий пример
 const BAD = /undefined|NaN|\[object Object\]/;
 const plain = x => JSON.parse(JSON.stringify(x));
+// темы-черновики (ещё не на сайте): проверка читаемости доски для них — напоминание, а не ошибка
+const DRAFTS = new Set(['svojstva-kvadratnogo-korena']);
 
 // верный ответ в том виде, в каком его отдаёт поле ввода (для своих видов ввода тема задаёт TYPES[type].correct)
 function correct(T, t) {
@@ -31,7 +33,7 @@ function wrong(T, t, A) {
   return null;
 }
 
-for (const slug of [...SLUGS, TEMPLATE]) {
+for (const slug of [...SLUGS, ...(process.env.MATSHAG_CHECK_SLUG ? [] : [TEMPLATE])]) {
   const html = slug === TEMPLATE ? buildTemplate() : buildMaterial(slug);
   const open = (t, query = '', options = {}) => {
     const m = loadHtml(html, { query, slug, ...options });
@@ -188,6 +190,55 @@ for (const slug of [...SLUGS, TEMPLATE]) {
     assert.equal(B.i, 0);
     assert.deepEqual(errors, []);
   });
+
+  // Читаемость доски на проекторе: то, что не видно в тестах ответов. Подписи сравниваются по координатам чертежа
+  // (980 × 400): размер шрифта .lab — 38, .lab.s — 30, ширина символа ≈ 0,55 кегля.
+  test(`${slug}: доска читается — чертёж на шагах, подписи не под ручками и не друг на друге, форматы выбраны`,
+    DRAFTS.has(slug) ? { todo: 'черновик: доска не готова к показу' } : {}, t => {
+      const { window: w, errors } = open(t, '?mode=board');
+      const A = w.APP, B = A.board, d = w.document;
+      const shows = A.CONFIG.board.shows, formats = A.CONFIG.print.formats;
+      assert.ok(Array.isArray(shows), 'выбери показы темы: CONFIG.board.shows — 2–3 подходящих, а не всё, что умеет ядро');
+      for (const k of shows) assert.ok(A.SHOWS[k]?.available(), `показ ${k} есть и доступен теме`);
+      assert.ok(Array.isArray(formats) && formats.length, 'выбери листы темы: CONFIG.print.formats');
+      for (const k of formats) assert.ok(A.SHEETS[k], `лист ${k} есть у темы`);
+      const plainSteps = [];
+      for (let i = 0; i < B.steps.length; i++) {
+        let pic = false;
+        for (const ph of [0, 1]) {
+          B.go(i, ph);
+          const svg = d.querySelector('#bStage svg');
+          if (!svg) continue;
+          pic = true;
+          const where = `шаг ${i + 1}${ph ? ' (ответ)' : ''}`;
+          // подписи без сдвигов (transform) — их координаты совпадают с координатами чертежа
+          const texts = [...svg.querySelectorAll('text[x][y]')].filter(el => el.textContent.trim() &&
+            !el.closest('[data-handle]') && !el.parentElement.closest('[transform]'));
+          const box = el => {
+            const fs = /\bs\b/.test(el.getAttribute('class') || '') ? 30 : 38, w = el.textContent.trim().length * fs * 0.55;
+            const x = +el.getAttribute('x'), y = +el.getAttribute('y'), a = el.getAttribute('text-anchor');
+            const x0 = a === 'middle' ? x - w / 2 : a === 'end' ? x - w : x;
+            return { x0, x1: x0 + w, y0: y - fs * 0.72, y1: y + fs * 0.2, cx: x0 + w / 2, cy: y - fs * 0.3 };
+          };
+          for (const h of B.handles) if (!h.ring) for (const el of texts) {
+            const b = box(el);
+            assert.ok(Math.hypot(b.cx - h.at.x, b.cy - h.at.y) > h.r + 4 || el.textContent.trim() === '?',
+              `${where}: подпись «${el.textContent}» закрыта ручкой «${h.label}» — сдвинь подпись или сделай ручку кольцом (ring)`);
+          }
+          const labs = texts.filter(el => /\blab\b/.test(el.getAttribute('class') || ''));
+          for (let a = 0; a < labs.length; a++) for (let c = a + 1; c < labs.length; c++) {
+            const p = box(labs[a]), q = box(labs[c]);
+            const ov = Math.max(0, Math.min(p.x1, q.x1) - Math.max(p.x0, q.x0)) * Math.max(0, Math.min(p.y1, q.y1) - Math.max(p.y0, q.y0));
+            const small = Math.min((p.x1 - p.x0) * (p.y1 - p.y0), (q.x1 - q.x0) * (q.y1 - q.y0));
+            assert.ok(ov < 0.15 * small, `${where}: подписи «${labs[a].textContent}» и «${labs[c].textContent}» налезают друг на друга`);
+          }
+        }
+        if (!pic) plainSteps.push(i + 1);
+      }
+      assert.ok(plainSteps.length <= 1, `шаги без чертежа: ${plainSteps.join(', ')}. На доске класс смотрит на чертёж: ` +
+        'нарисуй выражение, модель или схему (blines — строки выкладки крупно) или объедини шаги; без чертежа — только итог');
+      assert.deepEqual(errors, []);
+    });
 
   test(`${slug}: тренажёр — в каждом разделе задания решаются, ошибки объясняются`, t => {
     const { window: w, errors } = open(t, '?mode=home');

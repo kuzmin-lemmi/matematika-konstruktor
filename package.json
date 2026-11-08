@@ -13,7 +13,8 @@
     "check": "node tools/publish.mjs check",
     "publish": "node tools/publish.mjs publish",
     "test": "node --test \"tests/*.test.mjs\"",
-    "snapshot": "node tools/snapshot.mjs"
+    "snapshot": "node tools/snapshot.mjs",
+    "check:fast": "node tools/check-fast.mjs"
   },
   "devDependencies": {
     "jsdom": "^29.1.1"

@@ -10,7 +10,7 @@ import { ROOT, readConfig, outFile, materialDir, isSlug } from './paths.mjs';
 const CORE = join(ROOT, 'core');
 // порядок важен только для кода, который выполняется сразу при загрузке: тема — после общих функций,
 // types.js (значения по умолчанию для TYPES) — после темы, запуск (boot.js) — последним; GEO нужен теме при загрузке
-const SCRIPT_ORDER = ['shell.js', 'math.js', 'geom.js', '@topic', 'types.js', 'print.js', 'board.js', 'live.js', 'home.js', 'boot.js'];
+const SCRIPT_ORDER = ['shell.js', 'math.js', 'geom.js', '@topic', 'types.js', 'formats.js', 'print.js', 'board.js', 'shows.js', 'live.js', 'home.js', 'boot.js'];
 const REQUIRED_META = ['title', 'description', 'kicker', 'lead', 'modeBoard', 'modePrint', 'modeHome', 'printTitle', 'homeTitle', 'homeIntro'];
 // что тема обязана объявить (проверка по тексту — до запуска в браузере)
 const REQUIRED_TOPIC = ['const CONFIG', 'const GEN_VERSION', 'const TYPES', 'const CATS', 'const SECTIONS', 'const KINDS_V1',

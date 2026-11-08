@@ -4,6 +4,7 @@
 const CONFIG = {
   maxRoot: 20,              // таблица квадратов в заданиях: до 20²
   board: {
+    shows: ['warmup', 'dictation', 'truefalse'],   // показы в меню — как было при публикации
     side: 5,                // первый пример: квадрат площадью 25
     trap: 4,                // ловушка «√16 = ±4» и график x² = 16
     neg: 9,                 // «существует ли √(−9)»
@@ -14,6 +15,7 @@ const CONFIG = {
     previewDelay: 1700,     // превью на сайте: пауза между шагами, мс
   },
   print: {
+    formats: ['word', 'oge', 'exit', 'test', 'choice', 'pair', 'ladder', 'domino'],   // листы в меню — как было при публикации
     variants: 25,           // сколько вариантов печатать по умолчанию
     traps: 2,               // сколько ответов-ловушек на задание в таблице букв
     space: true,            // сетка для решения под каждым заданием
@@ -39,7 +41,7 @@ const yesNo = [['yes', 'Имеет смысл'], ['no', 'Не имеет смы�
 
 const TYPES = {
   table: {
-    input: 'num', title: 'Корень из числа',
+    input: 'num', title: 'Корень из числа', oral: true,
     gen: rnd => ({ k: int(rnd, 2, CONFIG.maxRoot) }),
     text: t => RT(t.k * t.k),
     ans: t => Q(t.k),
@@ -54,7 +56,7 @@ const TYPES = {
       `${t.k - 1}² = ${(t.k - 1) ** 2}, ${t.k + 1}² = ${(t.k + 1) ** 2}. Ответ — между ${t.k - 1} и ${t.k + 1}.`],
   },
   dec: {
-    input: 'num', title: 'Корень из десятичной дроби',
+    input: 'num', title: 'Корень из десятичной дроби', oral: true,
     // root = k / 10^m, под корнем root²: 0,09, 1,44, 0,0049
     gen: rnd => ({ k: int(rnd, 1, 19), m: rnd() < 0.55 ? 1 : 2 }),
     bad: t => t.k % 10 === 0,
@@ -149,7 +151,7 @@ const TYPES = {
       `Под корнем ${(TYPES.meaning.under(t) < 0 ? MINUS : '') + Math.abs(TYPES.meaning.under(t))}.`],
   },
   square: {
-    input: 'num', title: 'Квадрат корня',
+    input: 'num', title: 'Квадрат корня', oral: true,
     gen: rnd => ({ form: pick(rnd, ['A', 'B', 'C', 'D']), a: int(rnd, 2, 99), k: int(rnd, 2, 6), b: int(rnd, 2, 11), m: int(rnd, 2, 20) }),
     bad: t => isqrt(t.a) != null || isqrt(t.b) != null,
     text: t => ({ A: `(${RT(t.a)})²`, B: `(${MINUS}${RT(t.a)})²`, C: `(${t.k}${RT(t.b)})²`, D: RT(`(${MINUS}${t.m})²`) })[t.form],
