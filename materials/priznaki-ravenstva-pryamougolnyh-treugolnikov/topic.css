@@ -1,0 +1,14 @@
+/* Тема «Признаки равенства прямоугольных треугольников»: малые чертежи заданий (тренажёр и лист) */
+.tdraw { width: 100%; max-width: 120mm; display: block; margin: 6px auto 0; }
+.half .tdraw, .compact .tdraw { max-width: 100mm; }
+svg .side { fill: none; stroke: var(--ink); stroke-width: 5; stroke-linejoin: round; }
+svg .tick { stroke: var(--b); stroke-width: 4; }
+svg .arc  { fill: none; stroke: var(--b); stroke-width: 3.6; }
+svg .vl   { font-size: 30px; font-weight: 700; }
+svg .vl .g-sub { font-size: 20px; }
+svg .num  { font-size: 28px; font-weight: 800; fill: var(--accent); }
+.tq { margin: 6px 0 0; }
+#home .tq { font-size: clamp(19px, 3vw, 25px); font-weight: 600; }
+#home .tdraw { max-height: 260px; }
+#home .choice { max-width: 100%; white-space: normal; overflow-wrap: anywhere; font-size: 22px; }
+.sheet .tasks { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2mm 3mm; }
