@@ -10,7 +10,7 @@ import { ROOT, readConfig, outFile, materialDir, isSlug } from './paths.mjs';
 const CORE = join(ROOT, 'core');
 // порядок важен только для кода, который выполняется сразу при загрузке: тема — после общих функций,
 // types.js (значения по умолчанию для TYPES) — после темы, запуск (boot.js) — последним; GEO нужен теме при загрузке
-const SCRIPT_ORDER = ['shell.js', 'math.js', 'geom.js', '@topic', 'types.js', 'formats.js', 'print.js', 'board.js', 'shows.js', 'live.js', 'home.js', 'boot.js'];
+const SCRIPT_ORDER = ['shell.js', 'math.js', 'geom.js', '@topic', 'types.js', 'formats.js', 'print.js', 'board.js', 'shows.js', 'live.js', 'edit.js', 'home.js', 'boot.js'];
 const REQUIRED_META = ['title', 'description', 'kicker', 'lead', 'modeBoard', 'modePrint', 'modeHome', 'printTitle', 'homeTitle', 'homeIntro'];
 // что тема обязана объявить (проверка по тексту — до запуска в браузере)
 const REQUIRED_TOPIC = ['const CONFIG', 'const GEN_VERSION', 'const TYPES', 'const CATS', 'const SECTIONS', 'const KINDS_V1',
@@ -62,6 +62,12 @@ export function buildMaterial(slug, dir = materialDir(slug)) {
     ...SCRIPT_ORDER.map(f => f === '@topic' ? `// ---------- тема: materials/${slug}/topic.js ----------\n${topic}` : `// ---------- ядро: core/${f} ----------\n${read(join(CORE, f))}`),
   ].join('\n');
 
+  // весь код идёт в один <script>: закрывающий тег скрипта оборвал бы страницу, а начало HTML-комментария
+  // вместе с открывающим тегом скрипта сдвигает конец скрипта (так разбирает HTML браузер) — даже в комментарии кода
+  for (const [re, what] of [[/<\/?script/i, '<script или </script'], [/<!--/, '<!--']]) {
+    const cut = script.search(re);
+    if (cut >= 0) throw new Error(`${slug}: в коде ядра или темы встречается «${what}» (…${script.slice(Math.max(0, cut - 60), cut + 9).replace(/\s+/g, ' ')}…) — собери строку из частей: '<' + 'script'`);
+  }
   let html = read(join(CORE, 'page.html'));
   html = put(html, '<!--{{BANNER}}-->', `<!-- Собрано конструктором «Матшага» (D:\\Конструктор математика) из materials/${slug}/. Не правь этот файл руками:
      правь тему или ядро и пересобери — npm run build -- ${slug}. -->`);

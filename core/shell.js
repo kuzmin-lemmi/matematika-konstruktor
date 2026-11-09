@@ -1,5 +1,8 @@
 // Общие константы, адрес материала, хранилище настроек. SLUG и META вставляет сборка.
 const MINUS = '−';
+// Страница, какой она пришла, — до того как скрипты её изменили: из неё «Скачать мой урок» (core/edit.js)
+// собирает копию материала со вшитыми правками учителя
+const PAGE_SRC = document.documentElement.cloneNode(true);
 
 const P = new URLSearchParams(location.search);
 const MODE = ['board', 'print', 'home'].includes(P.get('mode')) ? P.get('mode') : null;

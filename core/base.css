@@ -95,6 +95,54 @@ h1{font-size:clamp(30px,5vw,48px);line-height:1.1;margin:0 0 12px;letter-spacing
 .bnote b{display:block;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
 #board.preview .bctl,#board.preview .bbar button{visibility:hidden}
 #board.preview .bnote{display:none}
+/* правка урока учителем (core/edit.js): рамки и значки изменённого видны только в режиме правки */
+#board.editing [contenteditable="true"]{outline:2px dashed var(--line);outline-offset:4px;border-radius:6px;cursor:text;min-height:1.2em}
+#board.editing [contenteditable="true"]:focus{outline:2px solid var(--accent)}
+#board.editing .ed-mod{outline-color:var(--b) !important;box-shadow:inset 4px 0 0 var(--b)}
+#board.editing .btext .a.hide{visibility:visible;opacity:.45}
+#board.editing .bstage text[data-ed]{cursor:pointer}
+#board.editing .bstage text[data-ed]:hover{fill:var(--accent)}
+#board.editing .bstage text.ed-mod{text-decoration:underline;text-decoration-color:var(--b)}
+#board.editing .bstage text.ed-sel{fill:var(--b)}
+.bedit .ed-box [font-style="italic"]{font-style:italic}
+.bedit .ed-box [font-weight="bold"]{font-weight:700}
+.bedit{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:4px 0 2px;padding:6px 12px;background:var(--surface);
+  border:2px solid var(--b);border-radius:var(--r);font-size:16px;line-height:1.35}
+.bedit[hidden]{display:none}
+@media (min-width:601px){ #board.editing{grid-template-rows:auto auto auto minmax(0,1fr) auto auto} }
+.bedit .ed-t{font-size:18px;white-space:nowrap}
+.bedit .ed-p{color:var(--soft);flex:1 1 280px}
+.bedit .ed-h{font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--soft)}
+.bedit .ed-row{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.bedit button{min-height:40px;font-size:16px;padding:.15em .7em}
+.bedit .ed-i{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--b);border-radius:999px;padding:1px 2px 1px 10px}
+.bedit .ed-x{min-height:30px;min-width:30px;font-size:15px;padding:0 .4em;border-radius:999px}
+.bedit .ed-n{color:var(--soft)}
+#edList,#edSvg{display:contents}
+.bedit .ed-box{flex:1 1 320px;border:2px solid var(--accent);border-radius:8px;padding:4px 10px;font-size:22px;min-height:1.6em;background:var(--bg)}
+.bedit .ed-p[hidden]{display:none}
+.bedit .ed-kit{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;flex:1 1 100%;border-top:1px dashed var(--line);padding-top:6px}
+.bedit .ed-name{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.bedit .ed-name input{font:inherit;font-weight:400;width:13em;min-height:36px;padding:2px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.bedit .ed-warn{flex:1 1 100%;color:var(--b);font-weight:600}
+.bedit .ed-msg{flex:1 1 100%}
+.bedit .ed-msg:empty{display:none}
+.bedit .ed-msg.ok{color:var(--ok)}
+.bedit .ed-msg.err{color:var(--bad);font-weight:600}
+.bedit .ed-url{font:inherit;width:min(100%,34em);min-height:36px;padding:2px 8px;border:1px solid var(--accent);border-radius:8px;background:var(--bg);color:var(--ink)}
+#board.preview .bedit{display:none}
+.ed-slide{width:min(720px,94vw);max-height:92vh;overflow:auto}
+.ed-slide label{display:grid;gap:4px;margin-top:10px;font-weight:600}
+.ed-slide textarea{font:inherit;font-weight:400;width:100%;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);resize:vertical}
+.ed-slide code{background:var(--info-soft);border-radius:4px;padding:0 4px}
+.ed-slide .es-pv{min-height:1.4em;padding:4px 10px;border-left:4px solid var(--line);font-size:22px;line-height:1.35}
+.ed-slide .es-pv.q{font-weight:700}
+.ed-slide .es-pv.a{color:var(--accent);font-weight:600}
+.ed-slide .es-pv .soft{color:var(--soft);font-weight:400;font-size:16px}
+.ed-slide .es-pic{margin-top:12px;border:1px solid var(--line);border-radius:8px;display:grid;gap:6px}
+.ed-slide .es-pic label{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0;font-weight:400}
+.ed-slide .es-pic select{font:inherit;max-width:100%;min-height:36px}
+.ed-slide #esDel[hidden]{display:none}
 @media (max-width:1150px){ .bbar .ttl{visibility:hidden} .bbar button .t{display:none} }
 /* ноутбук и проектор 1366 × 768: текст поджимается до 28px, остальная высота уходит чертежу */
 @media (max-height:860px){

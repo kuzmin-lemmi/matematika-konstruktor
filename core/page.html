@@ -44,9 +44,27 @@
     <button type="button" data-act="restart" title="С первого шага" aria-label="Заново">↺<span class="t"> Заново</span></button>
     <button type="button" data-act="numbers" title="Тот же показ с другими числами" aria-label="Другие числа">🎲<span class="t"> Другие числа</span></button>
     <button type="button" id="bTimer" data-act="timer" aria-pressed="false" title="Таймер задания" hidden>⏱</button>
+    <button type="button" data-act="edit" id="bEditBtn" aria-pressed="false" title="Править тексты урока: вопрос, ответ, запись, надписи на чертеже. Правки остаются в этом браузере" aria-label="Править урок">✎<span class="t"> Править</span></button>
     <button type="button" data-act="notes" id="bNotesBtn" aria-pressed="false" title="Что сказать на этом шаге. Подсказку видно и на проекторе — включайте, когда нужно" aria-label="Подсказка учителю">💬<span class="t"> Учителю</span></button>
     <button class="icon" type="button" data-act="theme" title="Светлая или тёмная тема" aria-label="Сменить тему">◐</button>
     <button class="icon" type="button" data-act="full" title="Во весь экран (F)" aria-label="Во весь экран">⛶</button>
+  </div>
+  <!-- правка урока учителем (core/edit.js): полоса под верхней строкой, только в режиме «✎ Править» -->
+  <div class="bedit no-print" id="bEdit" role="region" aria-label="Правка урока" hidden>
+    <b class="ed-t">✎ Правка урока</b>
+    <span class="ed-p" id="edHint">Щёлкните любой текст на доске или надпись на чертеже. Правки сохраняются в этом браузере, сайт не меняется.</span>
+    <span class="ed-row"><button type="button" id="edStep" data-eact="step">Вернуть шаг как было</button>
+      <button type="button" id="edAll" data-eact="all">Вернуть весь урок</button>
+      <button type="button" class="main" data-eact="done">Готово</button></span>
+    <div id="edSvg"></div>
+    <div id="edList"></div>
+    <span class="ed-kit"><label class="ed-name">Мой урок <input type="text" id="edTitle" maxlength="60" placeholder="например, 7Б, 12 ноября" autocomplete="off"></label>
+      <button type="button" data-eact="lesson" title="Один HTML-файл с вашими правками: открывается без интернета, его можно править дальше">⬇ Скачать мой урок</button>
+      <button type="button" data-eact="link" title="Ссылка на материал с вашими правками — открыть урок на другом компьютере">🔗 Ссылка</button>
+      <button type="button" data-eact="save" title="Только правки, небольшим файлом">💾 Правки в файл</button>
+      <button type="button" data-eact="open" title="Открыть файл правок или скачанный урок">📂 Открыть правки</button>
+      <input type="file" id="edFile" accept=".json,.html,.htm,application/json,text/html" hidden></span>
+    <div class="ed-msg" id="edMsg" aria-live="polite"></div>
   </div>
   <div class="btext" aria-live="polite"><div class="q" id="bQ"></div><div class="a" id="bA"></div></div>
   <!-- панель чертежа — колонкой справа: чертёж 980 × 400 шире экрана по пропорциям, высота остаётся ему -->
@@ -59,7 +77,7 @@
     <button type="button" data-act="prev" title="Назад (←, PageUp)">← Назад</button>
     <button type="button" class="main" data-act="next" id="bNext" title="Далее (→, Пробел, PageDown)">Показать ответ</button>
   </div>
-  <div class="bnote" id="bNote" hidden></div>
+  <div class="bnote" id="bNote" hidden><b>Учителю</b><div id="bNoteT"></div></div>
 </section>
 
 <!-- раздатка -->
@@ -119,6 +137,41 @@
     <div id="hEnd" hidden></div>
   </div>
 </section>
+
+<!-- материал открыт по ссылке с правками учителя (core/edit.js): применять — решает тот, кто открыл -->
+<div class="overlay" id="edAsk" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="edAskT">
+    <h3 id="edAskT">Урок с правками учителя</h3>
+    <p id="edAskP"></p>
+    <div class="hbtns"><button type="button" class="main" id="edAskYes" data-eact="ask-yes">Применить</button>
+      <button type="button" id="edAskNo" data-eact="ask-no">Не применять</button></div>
+  </div>
+</div>
+
+<!-- свой слайд учителя (core/edit.js) -->
+<div class="overlay" id="edSlide" hidden>
+  <div class="card ed-slide" role="dialog" aria-modal="true" aria-labelledby="edSlideT">
+    <h3 id="edSlideT">Мой слайд</h3>
+    <p class="note">Формулы пишите так: <code>a^2</code>, <code>x_1</code>, <code>sqrt(x)</code>, <code>(a+1)/(b)</code>, <code>1/2</code>,
+      <code>3*a</code> — умножить, <code>&lt;=</code> <code>&gt;=</code> <code>!=</code>. Ниже — как это будет на доске.</p>
+    <label>Вопрос классу <textarea id="esQ" rows="2"></textarea></label>
+    <div class="es-pv q" id="esQv"></div>
+    <label>Ответ — после «Показать ответ» <textarea id="esA" rows="2"></textarea></label>
+    <div class="es-pv a" id="esAv"></div>
+    <label>Запись в тетради — каждая строка отдельно <textarea id="esR" rows="2"></textarea></label>
+    <div class="es-pv" id="esRv"></div>
+    <label>Подсказка учителю (видна по «💬 Учителю») <textarea id="esN" rows="2"></textarea></label>
+    <fieldset class="es-pic"><legend>Чертёж</legend>
+      <label><input type="radio" name="esPic" value="none"> без чертежа</label>
+      <label><input type="radio" name="esPic" value="step" id="esPicStep"> чертёж из урока: <select id="esStep"></select></label>
+      <label><input type="radio" name="esPic" value="img"> картинка: <input type="file" id="esImg" accept="image/*"></label>
+      <span class="note" id="esImgMsg" aria-live="polite"></span>
+    </fieldset>
+    <div class="hbtns"><button type="button" class="main" data-eact="es-save">Сохранить</button>
+      <button type="button" data-eact="es-cancel">Отмена</button>
+      <button type="button" id="esDel" data-eact="es-del">Убрать слайд</button></div>
+  </div>
+</div>
 
 <div class="overlay" id="help" hidden>
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpT">
