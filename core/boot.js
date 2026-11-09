@@ -113,7 +113,11 @@ window.APP = {
     get texts() { return ED.svg.map(s => s.key); }, pick: edPick, mine: edMine, revertStep: edRevertStep,
     set(f, html) { const c = ED.cur[f]; edSet(c.key, c.o, f === 'rec' ? edLines(html).join('\n') : html); renderBoard(); },
     svg(key, html) { const s = ED.svg.find(x => x.key === key); edSet(key, s.o, html); renderBoard(); },
-    revert(key) { delete edKit().edits[key]; edSave(); renderBoard(); }, revertAll() { edKit().edits = {}; edSave(); renderBoard(); } },
+    revert(key) { delete edKit().edits[key]; edSave(); renderBoard(); }, revertAll() { edKit().edits = {}; edSave(); renderBoard(); },
+    // комплект: скачанный урок (HTML со вшитыми правками), файл правок, ссылка; fromLink — разбор ссылки при открытии
+    lessonHTML: edLessonHTML, kitJSON: edKitJSON, link: edLink, parseFile: edParseFile, offer: edOffer, apply: edApply,
+    get fromLink() { return ED.link; }, get file() { return ED_FILE; }, get storeKey() { return ED_STORE; }, get unsaved() { return edUnsaved(); },
+    title(t) { $('edTitle').value = t; $('edTitle').dispatchEvent(new Event('change')); } },
   GEO, HAS_LIVE: typeof LIVE !== 'undefined',
   print: { draw: drawSheets, set nums(v) { printNums = v; } },
   home: { state: H, start: homeStart, check: homeCheck, hint: homeHint, next: homeContinue, collect: homeCollect,

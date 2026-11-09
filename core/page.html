@@ -52,12 +52,19 @@
   <!-- правка урока учителем (core/edit.js): полоса под верхней строкой, только в режиме «✎ Править» -->
   <div class="bedit no-print" id="bEdit" role="region" aria-label="Правка урока" hidden>
     <b class="ed-t">✎ Правка урока</b>
-    <span class="ed-p">Щёлкните любой текст на доске или надпись на чертеже. Правки остаются в этом браузере, сайт не меняется.</span>
-    <div id="edSvg"></div>
-    <div id="edList"></div>
+    <span class="ed-p" id="edHint">Щёлкните любой текст на доске или надпись на чертеже. Правки сохраняются в этом браузере, сайт не меняется.</span>
     <span class="ed-row"><button type="button" id="edStep" data-eact="step">Вернуть шаг как было</button>
       <button type="button" id="edAll" data-eact="all">Вернуть весь урок</button>
       <button type="button" class="main" data-eact="done">Готово</button></span>
+    <div id="edSvg"></div>
+    <div id="edList"></div>
+    <span class="ed-kit"><label class="ed-name">Мой урок <input type="text" id="edTitle" maxlength="60" placeholder="например, 7Б, 12 ноября" autocomplete="off"></label>
+      <button type="button" data-eact="lesson" title="Один HTML-файл с вашими правками: открывается без интернета, его можно править дальше">⬇ Скачать мой урок</button>
+      <button type="button" data-eact="link" title="Ссылка на материал с вашими правками — открыть урок на другом компьютере">🔗 Ссылка</button>
+      <button type="button" data-eact="save" title="Только правки, небольшим файлом">💾 Правки в файл</button>
+      <button type="button" data-eact="open" title="Открыть файл правок или скачанный урок">📂 Открыть правки</button>
+      <input type="file" id="edFile" accept=".json,.html,.htm,application/json,text/html" hidden></span>
+    <div class="ed-msg" id="edMsg" aria-live="polite"></div>
   </div>
   <div class="btext" aria-live="polite"><div class="q" id="bQ"></div><div class="a" id="bA"></div></div>
   <!-- панель чертежа — колонкой справа: чертёж 980 × 400 шире экрана по пропорциям, высота остаётся ему -->
@@ -130,6 +137,16 @@
     <div id="hEnd" hidden></div>
   </div>
 </section>
+
+<!-- материал открыт по ссылке с правками учителя (core/edit.js): применять — решает тот, кто открыл -->
+<div class="overlay" id="edAsk" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="edAskT">
+    <h3 id="edAskT">Урок с правками учителя</h3>
+    <p id="edAskP"></p>
+    <div class="hbtns"><button type="button" class="main" id="edAskYes" data-eact="ask-yes">Применить</button>
+      <button type="button" id="edAskNo" data-eact="ask-no">Не применять</button></div>
+  </div>
+</div>
 
 <div class="overlay" id="help" hidden>
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpT">

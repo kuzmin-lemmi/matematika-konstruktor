@@ -120,6 +120,16 @@ h1{font-size:clamp(30px,5vw,48px);line-height:1.1;margin:0 0 12px;letter-spacing
 .bedit .ed-n{color:var(--soft)}
 #edList,#edSvg{display:contents}
 .bedit .ed-box{flex:1 1 320px;border:2px solid var(--accent);border-radius:8px;padding:4px 10px;font-size:22px;min-height:1.6em;background:var(--bg)}
+.bedit .ed-p[hidden]{display:none}
+.bedit .ed-kit{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;flex:1 1 100%;border-top:1px dashed var(--line);padding-top:6px}
+.bedit .ed-name{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.bedit .ed-name input{font:inherit;font-weight:400;width:13em;min-height:36px;padding:2px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.bedit .ed-warn{flex:1 1 100%;color:var(--b);font-weight:600}
+.bedit .ed-msg{flex:1 1 100%}
+.bedit .ed-msg:empty{display:none}
+.bedit .ed-msg.ok{color:var(--ok)}
+.bedit .ed-msg.err{color:var(--bad);font-weight:600}
+.bedit .ed-url{font:inherit;width:min(100%,34em);min-height:36px;padding:2px 8px;border:1px solid var(--accent);border-radius:8px;background:var(--bg);color:var(--ink)}
 #board.preview .bedit{display:none}
 @media (max-width:1150px){ .bbar .ttl{visibility:hidden} .bbar button .t{display:none} }
 /* ноутбук и проектор 1366 × 768: текст поджимается до 28px, остальная высота уходит чертежу */

@@ -120,3 +120,113 @@ test(`${PILOT}: надпись на чертеже правится и пере�
   A.edit.revert(key);
   assert.ok(label(), '«Как было» вернуло надпись');
 });
+
+// ---------- этап 2: скачанный урок, файл правок, ссылка ----------
+const pilotHTML = buildMaterial(PILOT);
+const openPilot = (t, html = pilotHTML, { query = '?mode=board', storage = {}, url } = {}) => {
+  const m = loadHtml(html, { query, slug: PILOT, beforeParse: w => { for (const [k, v] of Object.entries(storage)) w.localStorage.setItem(k, v); } });
+  t.after(m.close);
+  return m;
+};
+const qText = w => w.document.getElementById('bQ').innerHTML;
+const kits = (w, html) => [...new w.DOMParser().parseFromString(html, 'text/html').querySelectorAll('#teacher-kit')];
+
+test(`${PILOT}: «Скачать мой урок» — копия со вшитыми правками открывается сразу с ними, правится и скачивается снова`, t => {
+  const { window: w } = openPilot(t);
+  w.APP.edit.set('q', 'Вопрос учителя </script><img src=x onerror=alert(1)>');
+  w.APP.edit.title('7Б, 12 ноября');
+  const copy = w.APP.edit.lessonHTML();
+  assert.equal((copy.match(/id="teacher-kit"/g) || []).length, 1, 'один вшитый комплект');
+  assert.doesNotMatch(copy.match(/<script type="application\/json" id="teacher-kit">([\s\S]*?)<\/script>/)[1], /</, 'в комплекте нет «<»');
+  assert.match(copy, /<title>7Б, 12 ноября — /);
+  assert.equal(w.APP.edit.unsaved, false, 'после скачивания правки сохранены');
+
+  const c = openPilot(t, copy), A = c.window.APP;
+  assert.deepEqual(c.errors.map(e => e.message), [], 'копия открывается без ошибок');
+  assert.equal(qText(c.window), 'Вопрос учителя', 'правка видна сразу, без вопроса; опасное вырезано');
+  assert.ok(A.edit.file?.id, 'у копии свой комплект');
+  assert.equal(A.edit.storeKey, 'kit:' + A.edit.file.id);
+  assert.match(c.window.document.querySelector('#board .ttl').textContent, /7Б, 12 ноября/);
+  // правим копию: изменение в её хранилище, файл напоминает скачать новую версию
+  A.board.next(); A.board.next();
+  A.edit.set('q', 'Вторая правка');
+  assert.equal(A.edit.unsaved, true);
+  const copy2 = A.edit.lessonHTML();
+  assert.equal(kits(w, copy2).length, 1, 'при повторном скачивании комплект один');
+  const c2 = openPilot(t, copy2);
+  assert.notEqual(c2.window.APP.edit.file.id, A.edit.file.id, 'новая копия — новый комплект');
+  assert.equal(Object.keys(c2.window.APP.edit.kit.edits).length, 2, 'в новой копии обе правки');
+
+  // две копии одной темы в одном хранилище (файлы с диска в Chrome) не смешиваются
+  const shared = { [`matshag:${PILOT}:${A.edit.storeKey}`]: JSON.stringify(A.edit.kit) };
+  const other = openPilot(t, copy2, { storage: shared });
+  assert.equal(Object.keys(other.window.APP.edit.kit.edits).length, 2);
+  assert.equal(qText(other.window), 'Вопрос учителя');
+  // а сам сайт своё хранилище не видит у копий и наоборот
+  const site = openPilot(t, pilotHTML, { storage: shared });
+  assert.equal(JSON.stringify(site.window.APP.edit.kit.edits), '{}');
+});
+
+test(`${PILOT}: файл правок — сохраняется и открывается; чужой и битый файл отклоняются понятно`, t => {
+  const { window: w } = openPilot(t);
+  w.APP.edit.set('q', 'Из файла');
+  const json = w.APP.edit.kitJSON();
+  const b = openPilot(t).window;
+  b.APP.edit.toggle(true);
+  b.APP.edit.offer(b.APP.edit.parseFile(json));
+  assert.equal(qText(b), 'Из файла', 'своих правок нет — применяется сразу');
+  // свои правки есть — спрашивает
+  b.APP.board.next(); b.APP.board.next();
+  b.APP.edit.set('q', 'Моя');
+  b.APP.edit.offer(b.APP.edit.parseFile(json));
+  assert.match(b.document.getElementById('edMsg').textContent, /Заменить ими ваши 2 правки/);
+  b.document.querySelector('[data-eact="load-yes"]').click();
+  assert.equal(Object.keys(b.APP.edit.kit.edits).length, 1);
+  // из скачанного урока тоже можно взять правки
+  assert.equal(Object.keys(b.APP.edit.parseFile(w.APP.edit.lessonHTML()).edits).length, 1);
+  const bad = [
+    ['{"matshag":1,"slug":"teorema-pifagora","edits":{}}', /к другому материалу/],
+    ['{oops', /повреждён/],
+    ['<html><body>нет</body></html>', /нет правок/],
+    ['{"hello":1}', /не файл правок/],
+  ];
+  for (const [text, re] of bad) assert.throws(() => b.APP.edit.parseFile(text), re);
+  // мусорные ключи и опасный текст из файла не проходят
+  const k = b.APP.edit.parseFile(JSON.stringify({ matshag: 1, slug: PILOT, edits: { 'x': { o: 'a', t: 'b' }, 'main:0:q': { o: 'a', t: '<script>x()</script>ok' } } }));
+  assert.equal(JSON.stringify(k.edits), JSON.stringify({ 'main:0:q': { o: 'a', t: 'ok' } }));
+});
+
+test(`${PILOT}: ссылка на урок — спрашивает «Применить?», переносит правки и числа`, async t => {
+  const { window: w } = openPilot(t);
+  w.APP.board.numbers(true);
+  w.APP.edit.set('q', 'По ссылке');
+  w.APP.edit.title('7А');
+  const url = await w.APP.edit.link();
+  assert.match(url, /^https:\/\/example\.test\/materials\/bukvennye-vyrazheniya\.html\?mode=board#kit=[jz]\./);
+  const hash = url.slice(url.indexOf('#'));
+  const e = JSON.parse(JSON.stringify(w.APP.board.e));
+
+  const b = loadHtml(pilotHTML, { query: '?mode=board' + hash, slug: PILOT });
+  t.after(b.close);
+  await b.window.APP.edit.fromLink;
+  const ask = b.window.document.getElementById('edAsk');
+  assert.equal(ask.hidden, false, 'спрашивает');
+  assert.match(b.window.document.getElementById('edAskP').textContent, /1 правка учителя — «7А»/);
+  assert.equal(b.window.location.hash, '', 'адрес очищен');
+  b.window.document.getElementById('edAskYes').click();
+  assert.equal(qText(b.window), 'По ссылке');
+  assert.deepEqual(JSON.parse(JSON.stringify(b.window.APP.board.e)), e, 'числа урока перенесены');
+
+  const no = loadHtml(pilotHTML, { query: '?mode=board' + hash, slug: PILOT });
+  t.after(no.close);
+  await no.window.APP.edit.fromLink;
+  no.window.document.getElementById('edAskNo').click();
+  assert.notEqual(qText(no.window), 'По ссылке', '«Не применять» — исходный урок');
+
+  const broken = loadHtml(pilotHTML, { query: '?mode=board#kit=j.bm90LWpzb24', slug: PILOT });
+  t.after(broken.close);
+  await broken.window.APP.edit.fromLink;
+  assert.match(broken.window.document.getElementById('edAskP').textContent, /повреждена/);
+  assert.equal(broken.window.document.getElementById('edAskYes').hidden, true);
+  assert.deepEqual(broken.errors.map(x => x.message), []);
+});

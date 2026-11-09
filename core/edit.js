@@ -75,23 +75,48 @@ function edClean(html, mode = 'html') {
 const edLines = html => edClean(html).split('<br>').map(s => s.trim()).filter(Boolean);
 
 // ---------- комплект урока ----------
+// Комплект: { matshag: 1, slug, edits: { ключ: { o, t } }, e — числа примера, title — «Мой урок»,
+//   id — у скачанного урока, changedAt / savedAt — когда правили и когда последний раз сохранили файлом или ссылкой }.
+// Всё, что приходит из файла, ссылки или хранилища, проходит edValid: чужая тема и битые данные отклоняются.
+const ED_KEY = /^[\w-]{1,30}:\d{1,3}:(q|a|note|rec:[01]|svg:[0-9a-z]{1,8}:\d{1,3})$/;
+function edValid(k) {
+  if (!k || typeof k !== 'object' || k.matshag !== 1) throw new Error('Это не файл правок «Матшага».');
+  if (k.slug !== SLUG) throw new Error(`Это правки к другому материалу (${String(k.slug).slice(0, 80)}), а открыт «${META.title}».`);
+  if (!k.edits || typeof k.edits !== 'object' || Array.isArray(k.edits)) throw new Error('В файле нет правок урока.');
+  const edits = {};
+  for (const [key, v] of Object.entries(k.edits)) {
+    if (!ED_KEY.test(key) || !v || typeof v.o !== 'string' || typeof v.t !== 'string' || v.o.length > 20000 || v.t.length > 20000) continue;
+    edits[key] = { o: v.o, t: key.includes(':svg:') ? edClean(v.t, 'svg') : key.includes(':rec:') ? v.t.split('\n').map(l => edClean(l)).filter(Boolean).join('\n') : edClean(v.t) };
+  }
+  const out = { matshag: 1, slug: SLUG, edits };
+  if (k.e !== undefined && edPlain(k.e)) out.e = k.e;
+  if (typeof k.title === 'string' && k.title.trim()) out.title = k.title.trim().slice(0, 60);
+  if (typeof k.id === 'string' && /^[\w-]{1,40}$/.test(k.id)) out.id = k.id;
+  for (const f of ['changedAt', 'savedAt']) if (Number.isFinite(k[f])) out[f] = k[f];
+  return out;
+}
+// урок, скачанный «Скачать мой урок»: правки вшиты в файл, а хранилище у каждой скачанной копии своё —
+// у файлов с диска в Chrome одно хранилище на все файлы, и две копии одной темы не должны смешиваться
+const ED_FILE = (() => {
+  const el = document.getElementById('teacher-kit');
+  if (!el) return null;
+  try { return edValid(JSON.parse(el.textContent)); } catch { return null; }
+})();
+const ED_STORE = ED_FILE?.id ? 'kit:' + ED_FILE.id : 'kit';
 function edKit() {
   if (ED.kit) return ED.kit;
   let k = null;
-  try { k = JSON.parse(store.get('kit') || 'null'); } catch {}
-  if (!k || k.matshag !== 1 || k.slug !== SLUG || !k.edits || typeof k.edits !== 'object') k = { matshag: 1, slug: SLUG, edits: {} };
-  for (const [key, v] of Object.entries(k.edits)) {
-    if (!v || typeof v.o !== 'string' || typeof v.t !== 'string') { delete k.edits[key]; continue; }
-    v.t = key.includes(':svg:') ? edClean(v.t, 'svg') : key.includes(':rec:') ? v.t.split('\n').map(l => edClean(l)).join('\n') : edClean(v.t);
-  }
-  if (k.e !== undefined && !edPlain(k.e)) delete k.e;
-  return ED.kit = k;
+  try { k = edValid(JSON.parse(store.get(ED_STORE) || 'null')); } catch {}
+  return ED.kit = k || (ED_FILE ? JSON.parse(JSON.stringify(ED_FILE)) : { matshag: 1, slug: SLUG, edits: {} });
 }
-function edSave() {
+function edSave(changed = true) {
   const k = edKit();
   if (!Object.keys(k.edits).length) delete k.e;
-  store.set('kit', JSON.stringify(k));
+  if (changed) k.changedAt = Date.now();
+  store.set(ED_STORE, JSON.stringify(k));
 }
+// есть правки, которых нет ни в файле, ни в ссылке
+const edUnsaved = () => (edKit().changedAt || 0) > (edKit().savedAt || 0);
 // числа примера, при которых учитель правил урок (boardNumbers берёт их при открытии)
 function edExample() {
   if (!ED_ON || B.show !== 'main') return null;
@@ -233,10 +258,15 @@ function edPanel() {
   if (hidden.length) s += `<span class="ed-h" title="Правка сделана при других числах или другом положении чертежа">Сейчас не видно:</span>${hidden.map(item).join('')}`;
   if (edMineDiffers()) s += `<button type="button" data-eact="mine" title="Вернуть числа, при которых вы правили урок">↩ Числа моего урока</button>`;
   s += `<span class="ed-n">Всего правок: <b>${all}</b></span>`;
+  if (edUnsaved() && (ED_FILE || all >= 3)) s += `<span class="ed-warn">${ED_FILE
+    ? 'Есть правки, которых нет в файле урока: нажмите «Скачать мой урок», чтобы сохранить новую версию.'
+    : 'Правки хранятся только в этом браузере: скачайте урок или сохраните правки в файл, чтобы не потерять.'}</span>`;
   setHTML($('edList'), s);
   $('edAll').textContent = ED.sureAll ? 'Точно вернуть весь урок?' : 'Вернуть весь урок';
   $('edAll').disabled = !all;
   $('edStep').disabled = !(seen.length + hidden.length);
+  $('edHint').hidden = all > 0;
+  if (document.activeElement !== $('edTitle')) $('edTitle').value = edKit().title || '';
 }
 function edRevertStep() {
   const pre = `${B.show}:${B.i}:`, k = edKit();
@@ -251,6 +281,7 @@ function edRevertAll() {
 function edMine() {
   if (!edKit().e) return;
   const i = B.i;
+  B.e = null;   // boardNumbers(false) без прошлого примера берёт числа урока (edExample)
   boardNumbers(false);
   boardGo(i, 0);
 }
@@ -265,5 +296,176 @@ $('bEdit').addEventListener('click', e => {
   if (a === 'mine') edMine();
   if (a === 'svg-save') edPickSave();
   if (a === 'svg-cancel') edPickClose();
+  if (a === 'lesson') edDownload(edFileName('html'), edLessonHTML(), 'text/html');
+  if (a === 'save') { edDownload(edFileName('json'), edKitJSON(), 'application/json'); edMsg('Правки сохранены в файл. Открыть их: «📂 Открыть правки» в этом материале.', 'ok'); }
+  if (a === 'open') $('edFile').click();
+  if (a === 'link') edLinkShow();
+  if (a === 'load-yes') edApply(ED.pending);
+  if (a === 'load-no') { ED.pending = null; edMsg(''); }
 });
+$('edTitle').addEventListener('change', () => {
+  const t = $('edTitle').value.trim().slice(0, 60), k = edKit();
+  if (t) k.title = t; else delete k.title;
+  edSave(); edTitleShow();
+});
+
+// ---------- комплект: скачанный урок, файл правок, ссылка ----------
+function edMsg(text, kind = '') {
+  $('edMsg').className = 'ed-msg' + (kind ? ' ' + kind : '');
+  $('edMsg').textContent = text;
+}
+const edFileName = ext => {
+  const t = (edKit().title || '').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  return `${SLUG}-${t || (ext === 'html' ? 'moi-urok' : 'pravki')}.${ext}`;
+};
+function edDownload(name, text, type) {
+  try {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: type + ';charset=utf-8' }));
+    a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    if (type === 'text/html') edMsg(`Скачан «${name}». Откройте его двойным щелчком — урок с вашими правками работает и без интернета.`, 'ok');
+  } catch { edMsg('Браузер не дал скачать файл.', 'err'); }
+}
+// то, что уходит в файл и ссылку: только данные урока
+const edExport = () => {
+  const k = edKit(), out = { matshag: 1, slug: SLUG, edits: k.edits };
+  if (k.e !== undefined) out.e = k.e;
+  if (k.title) out.title = k.title;
+  return out;
+};
+const edMarkSaved = () => { edKit().savedAt = Date.now(); edSave(false); if (ED.on) edPanel(); };
+function edKitJSON() { const s = JSON.stringify(edExport(), null, 1); edMarkSaved(); return s; }
+// копия этого материала со вшитым комплектом: скрипт application/json с id teacher-kit в начале body,
+// чтобы он был прочитан раньше кода материала. У каждой скачанной копии свой id — своё хранилище.
+// Пометка о копии — комментарием перед html; его начало собрано из частей: в коде страницы нельзя
+// писать начало HTML-комментария и тег скрипта (сборка это проверяет).
+const ED_NOTE = '<' + '!-- Урок учителя на основе материала с matshag.ru. Правки вшиты в этот файл (teacher-kit). --' + '>';
+function edLessonHTML() {
+  const now = Date.now(), kit = { ...edExport(), id: now.toString(36) + Math.random().toString(36).slice(2, 8), savedAt: now, changedAt: now };
+  const c = PAGE_SRC.cloneNode(true);
+  c.querySelector('#teacher-kit')?.remove();
+  const s = document.createElement('script');
+  s.type = 'application/json'; s.id = 'teacher-kit';
+  s.textContent = JSON.stringify(kit).replace(/</g, '\\u003c');   // закрывающий тег скрипта в тексте правки не закроет этот тег
+  const body = c.querySelector('body');
+  body.insertBefore(s, body.firstChild);
+  if (kit.title) c.querySelector('title').textContent = `${kit.title} — ${META.title} — Матшаг`;
+  edMarkSaved();
+  return '<!doctype html>\n' + ED_NOTE + '\n' + c.outerHTML;
+}
+// открыть: файл правок (.json) или скачанный урок (.html) — его вшитый комплект
+$('edFile').addEventListener('change', async () => {
+  const f = $('edFile').files?.[0];
+  $('edFile').value = '';
+  if (!f) return;
+  try { edOffer(edParseFile(await f.text())); } catch (e) { edMsg(e.message, 'err'); }
+});
+function edParseFile(text) {
+  let data;
+  if (/^\s*[{[]/.test(text)) {
+    try { data = JSON.parse(text); } catch { throw new Error('Файл повреждён: это не файл правок «Матшага».'); }
+  } else {
+    const el = new DOMParser().parseFromString(text, 'text/html').getElementById('teacher-kit');
+    if (!el) throw new Error('В этом файле нет правок учителя.');
+    try { data = JSON.parse(el.textContent); } catch { throw new Error('Правки в файле повреждены.'); }
+  }
+  return edValid(data);
+}
+const edPl = n => n % 10 === 1 && n % 100 !== 11 ? 'правка' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'правки' : 'правок';
+function edOffer(kit) {
+  const n = Object.keys(kit.edits).length, mine = Object.keys(edKit().edits).length;
+  if (!mine) return edApply(kit);
+  ED.pending = kit;
+  $('edMsg').className = 'ed-msg';
+  $('edMsg').innerHTML = `В файле ${n} ${edPl(n)}${kit.title ? ` («${edEsc(kit.title)}»)` : ''}. Заменить ими ваши ${mine} ${edPl(mine)}?
+    <button type="button" class="main" data-eact="load-yes">Заменить</button> <button type="button" data-eact="load-no">Отмена</button>`;
+}
+function edApply(kit) {
+  if (!kit) return;
+  ED.pending = null;
+  const k = edKit();
+  ED.kit = { ...kit, ...(k.id ? { id: k.id } : {}), ...(k.savedAt ? { savedAt: k.savedAt } : {}) };
+  edSave();
+  B.e = null;
+  boardNumbers(false);
+  boardGo(0, 0);
+  edTitleShow();
+  const n = Object.keys(kit.edits).length;
+  if (ED.on) edMsg(`Открыто: ${n} ${edPl(n)}.`, 'ok');
+}
+// название урока — в верхней строке доски: учитель видит, какой урок открыт
+function edTitleShow() {
+  const t = ED_ON && edKit().title;
+  document.querySelector('#board .ttl').textContent = META.title + (t ? ' · ' + t : '');
+}
+
+// ссылка: комплект сжат (deflate-raw) и лежит после # — эта часть адреса не уходит на сервер
+const ED_LINK_MAX = 8000;
+const edB64 = bytes => {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+const edUnB64 = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+const edStream = async (bytes, T) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new T('deflate-raw'))).arrayBuffer());
+async function edPack(text) {
+  const bytes = new TextEncoder().encode(text);
+  if (typeof CompressionStream === 'function') { try { return 'z.' + edB64(await edStream(bytes, CompressionStream)); } catch {} }
+  return 'j.' + edB64(bytes);
+}
+async function edUnpack(s) {
+  const kind = s.slice(0, 2), data = s.slice(2);
+  if (kind === 'j.') return new TextDecoder().decode(edUnB64(data));
+  if (kind === 'z.' && typeof DecompressionStream === 'function') return new TextDecoder().decode(await edStream(edUnB64(data), DecompressionStream));
+  throw new Error('Ссылка повреждена или открыта в слишком старом браузере.');
+}
+async function edLink() {
+  const site = /^https?:$/.test(location.protocol) && /\/materials\/[a-z0-9-]+\.html$/.test(location.pathname);
+  const base = site ? location.origin + location.pathname : `https://matshag.ru/materials/${SLUG}.html`;
+  const url = `${base}?mode=board#kit=${await edPack(JSON.stringify(edExport()))}`;
+  edMarkSaved();
+  return url;
+}
+async function edLinkShow() {
+  const url = await edLink();
+  $('edMsg').className = 'ed-msg';
+  $('edMsg').innerHTML = `<input type="text" class="ed-url" id="edUrl" readonly value="${edAttr(url)}"> <span id="edUrlNote"></span>`;
+  $('edUrl').select?.();
+  let copied = false;
+  try { await navigator.clipboard.writeText(url); copied = true; } catch {}
+  $('edUrlNote').textContent = (copied ? 'Ссылка скопирована. ' : 'Скопируйте ссылку. ') +
+    (url.length > ED_LINK_MAX ? `Она длинная (${url.length} знаков) — почта или мессенджер могут её обрезать; надёжнее «Скачать мой урок».`
+      : 'Откройте её на другом компьютере — урок будет с вашими правками.');
+}
+// открыт материал по ссылке с правками: спрашиваем, свои правки молча не заменяем
+async function edFromLink() {
+  const m = location.hash.match(/^#kit=([\w.-]+)$/);
+  if (!m) return null;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+  let kit = null, err = '';
+  try { kit = edValid(JSON.parse(await edUnpack(m[1]))); }
+  catch (e) { err = e instanceof SyntaxError || e instanceof DOMException || e instanceof TypeError ? 'Ссылка повреждена: правки не читаются.' : e.message; }
+  const n = kit ? Object.keys(kit.edits).length : 0, mine = Object.keys(edKit().edits).length;
+  $('edAskP').textContent = err || `В ссылке ${n} ${edPl(n)} учителя${kit.title ? ` — «${kit.title}»` : ''}.` +
+    (mine ? ` Ваши ${mine} ${edPl(mine)} в этом браузере будут заменены.` : '');
+  $('edAskYes').hidden = !!err;
+  $('edAskNo').textContent = err ? 'Понятно' : 'Не применять';
+  ED.pending = kit;
+  $('edAsk').hidden = false;
+  return kit;
+}
+$('edAsk').addEventListener('click', e => {
+  const a = e.target.closest('[data-eact]')?.dataset.eact;
+  if (a === 'ask-yes') { $('edAsk').hidden = true; edApply(ED.pending); }
+  if (a === 'ask-no') { $('edAsk').hidden = true; ED.pending = null; }
+});
+
 if (!ED_ON) $('bEditBtn').hidden = true;
+else {
+  edTitleShow();
+  ED.link = edFromLink();
+  // ссылку вставили во вкладку, где материал уже открыт: браузер меняет только # — страница не перезагружается
+  addEventListener('hashchange', () => { ED.link = edFromLink(); });
+}
