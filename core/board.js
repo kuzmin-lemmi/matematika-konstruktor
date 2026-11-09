@@ -49,7 +49,7 @@ function boardNumbers(random) {
     liveEnter();
     return;
   }
-  B.e = boardExample(random, B.e || {});
+  B.e = (!random && !B.e && edExample()) || boardExample(random, B.e || {});   // числа урока учителя — core/edit.js
   B.steps = buildSteps(B.e);
   B.m = liveModel(B.e);
   B.i = 0; B.phase = 0;
@@ -59,16 +59,18 @@ function renderBoard() {
   if (!B.steps.length) boardNumbers(false);
   const st = B.steps[B.i], m = B.m, ph = B.phase;
   $('bCnt').textContent = `Шаг ${B.i + 1} из ${B.steps.length}`;
-  setHTML($('bQ'), stepVal(st.q, m, ph));
-  setHTML($('bA'), stepVal(st.a, m, ph));
+  // каждое поле — через правку учителя (core/edit.js): его текст, если исходный текст поля тот же
+  edField('q', $('bQ'), stepVal(st.q, m, ph));
+  edField('a', $('bA'), stepVal(st.a, m, ph));
   $('bA').classList.toggle('hide', ph === 0);
   const pic = st.draw(ph, m), handles = liveHandlesSVG(st);
   const focused = document.activeElement?.closest?.('[data-handle]')?.dataset.handle;
   $('bStage').innerHTML = pic || handles ? svg(pic + handles, 'Чертёж к шагу').replace('<svg ', handles ? '<svg class="live" ' : '<svg ') : '';
   if (focused) $('bStage').querySelector(`[data-handle="${focused}"]`)?.focus({ preventScroll: true });
-  setHTML($('bRec'), stepVal(st.rec, ph, m).map(l => `<div class="ln">${l}</div>`).join(''));
-  setHTML($('bNote'), `<b>Учителю</b>${stepVal(st.note, m, ph)}`);
-  $('bNote').hidden = !B.notes;
+  edField('rec', $('bRec'), stepVal(st.rec, ph, m).join('\n'), t => t ? t.split('\n').map(l => `<div class="ln">${l}</div>`).join('') : '');
+  edField('note', $('bNoteT'), stepVal(st.note, m, ph));
+  edSvg();
+  $('bNote').hidden = !B.notes && !ED.on;
   $('bNotesBtn').setAttribute('aria-pressed', String(B.notes));
   $('bNext').textContent = ph === 0 ? 'Показать ответ' : 'Далее →';
   $('bNext').disabled = B.i === B.steps.length - 1 && ph === 1;

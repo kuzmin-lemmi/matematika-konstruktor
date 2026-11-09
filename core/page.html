@@ -44,9 +44,20 @@
     <button type="button" data-act="restart" title="С первого шага" aria-label="Заново">↺<span class="t"> Заново</span></button>
     <button type="button" data-act="numbers" title="Тот же показ с другими числами" aria-label="Другие числа">🎲<span class="t"> Другие числа</span></button>
     <button type="button" id="bTimer" data-act="timer" aria-pressed="false" title="Таймер задания" hidden>⏱</button>
+    <button type="button" data-act="edit" id="bEditBtn" aria-pressed="false" title="Править тексты урока: вопрос, ответ, запись, надписи на чертеже. Правки остаются в этом браузере" aria-label="Править урок">✎<span class="t"> Править</span></button>
     <button type="button" data-act="notes" id="bNotesBtn" aria-pressed="false" title="Что сказать на этом шаге. Подсказку видно и на проекторе — включайте, когда нужно" aria-label="Подсказка учителю">💬<span class="t"> Учителю</span></button>
     <button class="icon" type="button" data-act="theme" title="Светлая или тёмная тема" aria-label="Сменить тему">◐</button>
     <button class="icon" type="button" data-act="full" title="Во весь экран (F)" aria-label="Во весь экран">⛶</button>
+  </div>
+  <!-- правка урока учителем (core/edit.js): полоса под верхней строкой, только в режиме «✎ Править» -->
+  <div class="bedit no-print" id="bEdit" role="region" aria-label="Правка урока" hidden>
+    <b class="ed-t">✎ Правка урока</b>
+    <span class="ed-p">Щёлкните любой текст на доске или надпись на чертеже. Правки остаются в этом браузере, сайт не меняется.</span>
+    <div id="edSvg"></div>
+    <div id="edList"></div>
+    <span class="ed-row"><button type="button" id="edStep" data-eact="step">Вернуть шаг как было</button>
+      <button type="button" id="edAll" data-eact="all">Вернуть весь урок</button>
+      <button type="button" class="main" data-eact="done">Готово</button></span>
   </div>
   <div class="btext" aria-live="polite"><div class="q" id="bQ"></div><div class="a" id="bA"></div></div>
   <!-- панель чертежа — колонкой справа: чертёж 980 × 400 шире экрана по пропорциям, высота остаётся ему -->
@@ -59,7 +70,7 @@
     <button type="button" data-act="prev" title="Назад (←, PageUp)">← Назад</button>
     <button type="button" class="main" data-act="next" id="bNext" title="Далее (→, Пробел, PageDown)">Показать ответ</button>
   </div>
-  <div class="bnote" id="bNote" hidden></div>
+  <div class="bnote" id="bNote" hidden><b>Учителю</b><div id="bNoteT"></div></div>
 </section>
 
 <!-- раздатка -->
