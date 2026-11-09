@@ -148,6 +148,31 @@
   </div>
 </div>
 
+<!-- свой слайд учителя (core/edit.js) -->
+<div class="overlay" id="edSlide" hidden>
+  <div class="card ed-slide" role="dialog" aria-modal="true" aria-labelledby="edSlideT">
+    <h3 id="edSlideT">Мой слайд</h3>
+    <p class="note">Формулы пишите так: <code>a^2</code>, <code>x_1</code>, <code>sqrt(x)</code>, <code>(a+1)/(b)</code>, <code>1/2</code>,
+      <code>3*a</code> — умножить, <code>&lt;=</code> <code>&gt;=</code> <code>!=</code>. Ниже — как это будет на доске.</p>
+    <label>Вопрос классу <textarea id="esQ" rows="2"></textarea></label>
+    <div class="es-pv q" id="esQv"></div>
+    <label>Ответ — после «Показать ответ» <textarea id="esA" rows="2"></textarea></label>
+    <div class="es-pv a" id="esAv"></div>
+    <label>Запись в тетради — каждая строка отдельно <textarea id="esR" rows="2"></textarea></label>
+    <div class="es-pv" id="esRv"></div>
+    <label>Подсказка учителю (видна по «💬 Учителю») <textarea id="esN" rows="2"></textarea></label>
+    <fieldset class="es-pic"><legend>Чертёж</legend>
+      <label><input type="radio" name="esPic" value="none"> без чертежа</label>
+      <label><input type="radio" name="esPic" value="step" id="esPicStep"> чертёж из урока: <select id="esStep"></select></label>
+      <label><input type="radio" name="esPic" value="img"> картинка: <input type="file" id="esImg" accept="image/*"></label>
+      <span class="note" id="esImgMsg" aria-live="polite"></span>
+    </fieldset>
+    <div class="hbtns"><button type="button" class="main" data-eact="es-save">Сохранить</button>
+      <button type="button" data-eact="es-cancel">Отмена</button>
+      <button type="button" id="esDel" data-eact="es-del">Убрать слайд</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="help" hidden>
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpT">
 <!--{{HELP}}-->

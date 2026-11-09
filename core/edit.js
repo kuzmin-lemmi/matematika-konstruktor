@@ -5,9 +5,12 @@
 // Правки лежат в комплекте урока (store 'kit'), сайт и тема не меняются. Раздатку и тренажёр редактор не трогает.
 // Тема для редактора ничего не объявляет. План — ПЛАН-РЕДАКТОР-УЧИТЕЛЯ.md.
 const ED_ON = !PREVIEW && !STUDENT;   // превью на сайте и ученики видят исходный материал
-const ED = { on: false, kit: null, cur: {}, svg: [], pick: null, edit: null, sureAll: 0 };
+const ED = { on: false, kit: null, cur: {}, svg: [], pick: null, edit: null, sureAll: 0, sureDel: 0, slide: null };
 const ED_FIELDS = { q: 'bQ', a: 'bA', rec: 'bRec', note: 'bNoteT' };
 const ED_NAMES = { q: 'Вопрос', a: 'Ответ', rec: 'Запись в тетради', note: 'Подсказка учителю' };
+// картинка слайда учителя — только data-URL изображения; нужна уже при чтении вшитого комплекта (ED_FILE)
+const ED_IMG = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/;
+const ED_IMG_MAX = 450000;
 
 const edEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const edAttr = s => edEsc(s).replace(/"/g, '&quot;');
@@ -88,7 +91,7 @@ function edValid(k) {
     if (!ED_KEY.test(key) || !v || typeof v.o !== 'string' || typeof v.t !== 'string' || v.o.length > 20000 || v.t.length > 20000) continue;
     edits[key] = { o: v.o, t: key.includes(':svg:') ? edClean(v.t, 'svg') : key.includes(':rec:') ? v.t.split('\n').map(l => edClean(l)).filter(Boolean).join('\n') : edClean(v.t) };
   }
-  const out = { matshag: 1, slug: SLUG, edits };
+  const out = { matshag: 1, slug: SLUG, edits, slides: edValidSlides(k.slides) };
   if (k.e !== undefined && edPlain(k.e)) out.e = k.e;
   if (typeof k.title === 'string' && k.title.trim()) out.title = k.title.trim().slice(0, 60);
   if (typeof k.id === 'string' && /^[\w-]{1,40}$/.test(k.id)) out.id = k.id;
@@ -97,17 +100,19 @@ function edValid(k) {
 }
 // урок, скачанный «Скачать мой урок»: правки вшиты в файл, а хранилище у каждой скачанной копии своё —
 // у файлов с диска в Chrome одно хранилище на все файлы, и две копии одной темы не должны смешиваться
+let ED_FILE_ERR = '';   // вшитый комплект не прочитался — скажем учителю в полосе правки, а не промолчим
 const ED_FILE = (() => {
   const el = document.getElementById('teacher-kit');
   if (!el) return null;
-  try { return edValid(JSON.parse(el.textContent)); } catch { return null; }
+  try { return edValid(JSON.parse(el.textContent)); }
+  catch (e) { ED_FILE_ERR = 'Правки, вшитые в этот файл, не прочитались: ' + (e instanceof SyntaxError ? 'файл повреждён.' : e.message); return null; }
 })();
 const ED_STORE = ED_FILE?.id ? 'kit:' + ED_FILE.id : 'kit';
 function edKit() {
   if (ED.kit) return ED.kit;
   let k = null;
   try { k = edValid(JSON.parse(store.get(ED_STORE) || 'null')); } catch {}
-  return ED.kit = k || (ED_FILE ? JSON.parse(JSON.stringify(ED_FILE)) : { matshag: 1, slug: SLUG, edits: {} });
+  return ED.kit = k || (ED_FILE ? JSON.parse(JSON.stringify(ED_FILE)) : { matshag: 1, slug: SLUG, edits: {}, slides: [] });
 }
 function edSave(changed = true) {
   const k = edKit();
@@ -137,8 +142,17 @@ function edSet(key, o, t) {
 }
 
 // ---------- показ: renderBoard пропускает каждое поле через edField, чертёж — через edSvg ----------
-const edKey = f => `${B.show}:${B.i}:${f}` + (f === 'rec' ? ':' + B.phase : '');
+// ключ правки — номер шага темы (_ti), а не место на доске: слайды учителя между шагами его не сдвигают
+const edTi = () => B.steps[B.i]?._ti ?? B.i;
+const edMineNow = () => B.steps[B.i]?._mine || null;   // id слайда учителя на доске сейчас
+const edKey = f => `${B.show}:${edTi()}:${f}` + (f === 'rec' ? ':' + B.phase : '');
 function edField(f, el, o, view = s => s) {
+  if (edMineNow()) {   // слайд учителя правится в окне «Мой слайд», а не по полям
+    ED.cur[f] = null;
+    el.classList.remove('ed-mod');
+    setHTML(el, view(o));
+    return;
+  }
   const key = edKey(f), ed = ED_ON ? edKit().edits[key] : null, hit = !!ed && ed.o === o;
   ED.cur[f] = { key, o };
   el.classList.toggle('ed-mod', hit);
@@ -150,11 +164,16 @@ function edField(f, el, o, view = s => s) {
 }
 function edSvg() {
   ED.svg = [];
-  const seen = {};
-  for (const t of $('bStage').querySelectorAll('svg text')) {
+  const seen = {}, mine = edMineNow();
+  // поля шага темы правятся прямо на доске, слайда учителя — щелчком открывают его окно
+  for (const id of Object.values(ED_FIELDS)) {
+    if (ED.on && !mine) { $(id).setAttribute('contenteditable', 'true'); $(id).setAttribute('spellcheck', 'true'); }
+    else $(id).removeAttribute('contenteditable');
+  }
+  for (const t of mine ? [] : $('bStage').querySelectorAll('svg text')) {
     if (t.closest('[data-handle]')) continue;
     const o = t.innerHTML, h = edHash(o), n = seen[h] = (seen[h] || 0) + 1;
-    const key = `${B.show}:${B.i}:svg:${h}:${n}`, ed = ED_ON ? edKit().edits[key] : null;
+    const key = `${B.show}:${edTi()}:svg:${h}:${n}`, ed = ED_ON ? edKit().edits[key] : null;
     t.setAttribute('data-ed', key);
     ED.svg.push({ key, o });
     if (ed && ed.o === o) { t.innerHTML = ed.t; t.classList.add('ed-mod'); }
@@ -170,12 +189,9 @@ function edToggle(on = !ED.on) {
   ED.on = on; ED.pick = null; ED.sureAll = 0;
   $('board').classList.toggle('editing', on);
   $('bEditBtn').setAttribute('aria-pressed', String(on));
-  for (const id of Object.values(ED_FIELDS)) {
-    if (on) { $(id).setAttribute('contenteditable', 'true'); $(id).setAttribute('spellcheck', 'true'); }
-    else $(id).removeAttribute('contenteditable');
-  }
   $('bEdit').hidden = !on;
   if (on) $('edSvg').innerHTML = '';
+  if (on && ED_FILE_ERR) edMsg(ED_FILE_ERR, 'err');
   renderBoard();
 }
 function edCommit(f) {
@@ -240,7 +256,8 @@ $('bEdit').addEventListener('keydown', e => {
 
 // правки этого шага: видимые сейчас и те, что не видны (другие числа, другое положение модели, тема изменилась)
 function edStepEdits() {
-  const pre = `${B.show}:${B.i}:`, k = edKit(), seen = [], hidden = [];
+  const pre = `${B.show}:${edTi()}:`, k = edKit(), seen = [], hidden = [];
+  if (edMineNow()) return { seen, hidden };
   for (const [key, v] of Object.entries(k.edits)) {
     if (!key.startsWith(pre)) continue;
     const f = key.slice(pre.length).split(':')[0];
@@ -251,32 +268,46 @@ function edStepEdits() {
   return { seen, hidden };
 }
 function edPanel() {
-  const { seen, hidden } = edStepEdits(), all = Object.keys(edKit().edits).length;
+  const { seen, hidden } = edStepEdits(), mine = edMineNow(), slides = edKit().slides;
+  const all = Object.keys(edKit().edits).length + slides.length;
+  $('bCnt').textContent = `Шаг ${B.i + 1} из ${B.steps.length}` + (mine ? ' · мой слайд' : '');
   const item = x => `<span class="ed-i">${edEsc(x.name)}<button type="button" class="ed-x" data-eact="revert" data-key="${edAttr(x.key)}" title="Вернуть как было" aria-label="Вернуть как было: ${edAttr(x.name)}">↺</button></span>`;
   let s = '';
   if (seen.length) s += `<span class="ed-h">Изменено на шаге:</span>${seen.map(item).join('')}`;
   if (hidden.length) s += `<span class="ed-h" title="Правка сделана при других числах или другом положении чертежа">Сейчас не видно:</span>${hidden.map(item).join('')}`;
   if (edMineDiffers()) s += `<button type="button" data-eact="mine" title="Вернуть числа, при которых вы правили урок">↩ Числа моего урока</button>`;
-  s += `<span class="ed-n">Всего правок: <b>${all}</b></span>`;
+  if (mine) {
+    const sl = slides.find(x => x.id === mine), pos = B.steps.findIndex(x => x._mine === mine);
+    s += `<span class="ed-h">Мой слайд:</span><button type="button" class="main" data-eact="slide-edit">✎ Изменить слайд</button>
+      <button type="button" data-eact="slide-up" ${pos > 0 ? '' : 'disabled'} title="Поставить на шаг раньше">↑ Раньше</button>
+      <button type="button" data-eact="slide-down" ${pos < B.steps.length - 1 ? '' : 'disabled'} title="Поставить на шаг позже">↓ Позже</button>`;
+    if (sl && B.steps[B.i]._lost) s += `<span class="ed-warn">Шаг темы, после которого стоял слайд, изменился — слайд поставлен в конец.</span>`;
+  }
+  s += `<button type="button" data-eact="slide-add" title="Свой слайд сразу после этого шага">＋ Мой слайд</button>`;
+  s += `<span class="ed-n">Правок: <b>${Object.keys(edKit().edits).length}</b>${slides.length ? `, моих слайдов: <b>${slides.length}</b>` : ''}</span>`;
   if (edUnsaved() && (ED_FILE || all >= 3)) s += `<span class="ed-warn">${ED_FILE
     ? 'Есть правки, которых нет в файле урока: нажмите «Скачать мой урок», чтобы сохранить новую версию.'
     : 'Правки хранятся только в этом браузере: скачайте урок или сохраните правки в файл, чтобы не потерять.'}</span>`;
   setHTML($('edList'), s);
   $('edAll').textContent = ED.sureAll ? 'Точно вернуть весь урок?' : 'Вернуть весь урок';
   $('edAll').disabled = !all;
-  $('edStep').disabled = !(seen.length + hidden.length);
+  $('edStep').textContent = mine ? (ED.sureDel ? 'Точно убрать слайд?' : 'Убрать мой слайд') : 'Вернуть шаг как было';
+  $('edStep').disabled = !mine && !(seen.length + hidden.length);
   $('edHint').hidden = all > 0;
   if (document.activeElement !== $('edTitle')) $('edTitle').value = edKit().title || '';
 }
 function edRevertStep() {
-  const pre = `${B.show}:${B.i}:`, k = edKit();
+  if (edMineNow()) return edSlideDel(edMineNow());
+  const pre = `${B.show}:${edTi()}:`, k = edKit();
   for (const key of Object.keys(k.edits)) if (key.startsWith(pre)) delete k.edits[key];
   edSave(); renderBoard();
 }
 function edRevertAll() {
   if (!ED.sureAll) { ED.sureAll = setTimeout(() => { ED.sureAll = 0; if (ED.on) edPanel(); }, 4000); edPanel(); return; }
   clearTimeout(ED.sureAll); ED.sureAll = 0;
-  edKit().edits = {}; edSave(); renderBoard();
+  const k = edKit(), here = B.steps[B.i]?._ti;
+  k.edits = {}; k.slides = []; edSave();
+  edRebuild(here ?? 0);
 }
 function edMine() {
   if (!edKit().e) return;
@@ -302,6 +333,10 @@ $('bEdit').addEventListener('click', e => {
   if (a === 'link') edLinkShow();
   if (a === 'load-yes') edApply(ED.pending);
   if (a === 'load-no') { ED.pending = null; edMsg(''); }
+  if (a === 'slide-add') edSlideOpen(null);
+  if (a === 'slide-edit') edSlideOpen(edMineNow());
+  if (a === 'slide-up') edSlideMove(edMineNow(), -1);
+  if (a === 'slide-down') edSlideMove(edMineNow(), 1);
 });
 $('edTitle').addEventListener('change', () => {
   const t = $('edTitle').value.trim().slice(0, 60), k = edKit();
@@ -328,9 +363,248 @@ function edDownload(name, text, type) {
     if (type === 'text/html') edMsg(`Скачан «${name}». Откройте его двойным щелчком — урок с вашими правками работает и без интернета.`, 'ok');
   } catch { edMsg('Браузер не дал скачать файл.', 'err'); }
 }
+// ---------- свои слайды учителя ----------
+// Запись формул для учителя: a^2, x_1, sqrt(x), (a+1)/(b), 1/2, 3*a → «·», <= >= != → ≤ ≥ ≠,
+// минус «-» → «−» (дефис между русскими буквами остаётся), латинские буквы — курсивом.
+// Текст слайда хранится как набран и превращается в HTML здесь: всё, кроме разметки формул, экранируется.
+function edMath(src) {
+  const s = String(src ?? '').slice(0, 2000), RU = /[а-яё]/i;
+  let p = 0;
+  function atom() {
+    const c = s[p], rest = s.slice(p);
+    let m;
+    if (/^sqrt\(/i.test(rest)) { p += 5; const g = seq(true); if (s[p] === ')') p++; const h = RT(g); return { h, g: h }; }
+    if (c === '(') { p++; const g = seq(true), closed = s[p] === ')'; if (closed) p++; return { h: '(' + g + (closed ? ')' : ''), g }; }
+    if ((m = /^\d+(?:[.,]\d+)?/.exec(rest))) { p += m[0].length; return { h: m[0], g: m[0] }; }
+    if ((m = /^[a-z]+/i.exec(rest))) { p += m[0].length; const h = `<i>${m[0]}</i>`; return { h, g: h }; }
+    for (const [op, h] of [['<=', ' ≤ '], ['>=', ' ≥ '], ['!=', ' ≠ ']]) if (rest.startsWith(op)) { p += 2; return { h }; }
+    p++;
+    if (c === '\n') return { h: '<br>' };
+    if (c === '*') return { h: '·' };
+    if (c === '-') return { h: RU.test(s[p - 2] || '') && RU.test(s[p] || '') ? '-' : MINUS };
+    const h = edEsc(c);
+    return /[\s+=<>:;,.!?]/.test(c) ? { h } : { h, g: h };
+  }
+  function seq(inParen) {
+    let out = '';
+    while (p < s.length && !(inParen && s[p] === ')')) {
+      let a = atom();
+      while ((s[p] === '^' || s[p] === '_') && p + 1 < s.length) {   // степень и индекс
+        const tag = s[p++] === '^' ? 'sup' : 'sub', b = atom();
+        a = { h: `${a.h}<${tag}>${b.g ?? b.h}</${tag}>` };
+        a.g = a.h;
+      }
+      if (s[p] === '/' && a.g !== undefined) {   // дробь: (a+1)/(b), 1/2, x/3
+        const back = p;
+        p++;
+        const b = p < s.length ? atom() : null;
+        if (b && b.g !== undefined) a = { h: F({ n: a.g, d: b.g }) };
+        else p = back + 1, a = { h: a.h + '/' };
+      }
+      out += a.h;
+    }
+    return out;
+  }
+  return seq(false);
+}
+// слайд: { id, after: { i: шаг темы, fp: отпечаток его вопроса } или null — в начале урока,
+//   q, a, note — текст, rec — строки тетради, pic: { kind: 'none' | 'step' (i — чертёж шага темы) | 'img' (src) } }
+function edValidSlides(list) {
+  if (!Array.isArray(list)) return [];
+  const str = (x, n = 2000) => typeof x === 'string' ? x.slice(0, n) : '';
+  const out = [];
+  for (const sl of list.slice(0, 60)) {
+    if (!sl || typeof sl !== 'object' || typeof sl.id !== 'string' || !/^[\w-]{1,24}$/.test(sl.id) || out.some(x => x.id === sl.id)) continue;
+    const after = sl.after && Number.isInteger(sl.after.i) && sl.after.i >= 0 && sl.after.i < 1000 && /^[0-9a-z]{1,8}$/.test(sl.after.fp) ? { i: sl.after.i, fp: sl.after.fp } : null;
+    let pic = { kind: 'none' };
+    if (sl.pic?.kind === 'step' && Number.isInteger(sl.pic.i) && sl.pic.i >= 0 && sl.pic.i < 1000) pic = { kind: 'step', i: sl.pic.i };
+    if (sl.pic?.kind === 'img' && typeof sl.pic.src === 'string' && sl.pic.src.length <= ED_IMG_MAX && ED_IMG.test(sl.pic.src)) pic = { kind: 'img', src: sl.pic.src };
+    out.push({ id: sl.id, after, q: str(sl.q), a: str(sl.a), note: str(sl.note),
+      rec: Array.isArray(sl.rec) ? sl.rec.filter(x => typeof x === 'string' && x.trim()).slice(0, 20).map(x => x.slice(0, 300)) : [], pic });
+  }
+  return out;
+}
+// отпечаток шага темы: текст вопроса без чисел — переживает «Другие числа», ловит перестановку шагов в теме
+function edFp(st) {
+  try { return edHash(edText(String(stepVal(st.q, B.m, 0) ?? '')).replace(/\d+([.,]\d+)?/g, '#')); } catch { return '0'; }
+}
+// шаги доски: шаги темы (с номером _ti) и между ними слайды учителя
+function edSteps(base) {
+  base.forEach((st, i) => { st._ti = i; });
+  const slides = ED_ON && B.show === 'main' ? edKit().slides : [];
+  if (!slides.length) return base;
+  const fps = base.map(edFp), out = [];
+  const place = slides.map(sl => {
+    if (!sl.after) return { j: -1 };
+    if (fps[sl.after.i] === sl.after.fp) return { j: sl.after.i };
+    const j = fps.indexOf(sl.after.fp);
+    return j >= 0 ? { j } : { j: base.length - 1, lost: true };
+  });
+  const put = j => slides.forEach((sl, k) => { if (place[k].j === j) out.push(edSlideStep(sl, place[k].lost)); });
+  put(-1);
+  base.forEach((st, j) => { out.push(st); put(j); });
+  return out;
+}
+function edSlideStep(sl, lost) {
+  const rec = sl.rec.map(edMath);
+  return {
+    _mine: sl.id, _lost: !!lost,
+    q: edMath(sl.q), a: edMath(sl.a), note: sl.note ? edMath(sl.note) : 'Ваш слайд. Изменить его — «✎ Править».',
+    rec: ph => ph || !sl.a ? rec : [],
+    draw: (ph, m) => {
+      if (sl.pic.kind === 'img') return `<image href="${sl.pic.src}" x="0" y="0" width="${BW}" height="${BH}" preserveAspectRatio="xMidYMid meet"/>`;
+      if (sl.pic.kind === 'step' && B.base[sl.pic.i]) { try { return B.base[sl.pic.i].draw(1, m) || ''; } catch { return ''; } }
+      return '';
+    },
+  };
+}
+// пересобрать шаги после изменения слайдов и встать на слайд (id) или на шаг темы (номер)
+function edRebuild(to) {
+  liveStop();
+  B.steps = edSteps(B.base);
+  const i = typeof to === 'string' ? B.steps.findIndex(st => st._mine === to) : B.steps.findIndex(st => st._ti === to);
+  LV.entered = false;
+  boardGo(Math.max(0, i), 0);
+}
+const edAnchor = () => {   // слайд, добавленный здесь, встаёт после этого шага темы
+  for (let i = B.i; i >= 0; i--) { const st = B.steps[i]; if (st._ti !== undefined) return { i: st._ti, fp: edFp(st) }; }
+  return null;
+};
+
+// окно «Мой слайд»
+function edSlideOpen(id) {
+  const sl = id ? edKit().slides.find(x => x.id === id) : null;
+  ED.slide = { id, pic: sl ? { ...sl.pic } : { kind: 'none' } };
+  $('edSlideT').textContent = sl ? 'Мой слайд' : 'Новый слайд — после этого шага';
+  $('esQ').value = sl?.q || ''; $('esA').value = sl?.a || ''; $('esN').value = sl?.note || ''; $('esR').value = (sl?.rec || []).join('\n');
+  const opts = B.base.map((st, i) => {
+    let pic = '';
+    try { pic = st.draw(1, B.m); } catch {}
+    return pic ? `<option value="${i}">шаг ${i + 1}: ${edEsc(edText(String(stepVal(st.q, B.m, 0) ?? '')).slice(0, 50))}</option>` : '';
+  }).join('');
+  $('esStep').innerHTML = opts;
+  const here = B.steps[B.i]?._ti;
+  $('esStep').value = String(ED.slide.pic.kind === 'step' ? ED.slide.pic.i : here ?? 0);
+  if (!$('esStep').value && $('esStep').options.length) $('esStep').selectedIndex = 0;
+  $('esPicStep').disabled = !opts;
+  for (const r of document.querySelectorAll('[name="esPic"]')) r.checked = r.value === ED.slide.pic.kind;
+  $('esDel').hidden = !id;
+  $('esImgMsg').textContent = ED.slide.pic.kind === 'img' ? 'Картинка выбрана.' : '';
+  edSlidePreview();
+  $('edSlide').hidden = false;
+  $('esQ').focus?.();
+}
+function edSlidePreview() {
+  setHTML($('esQv'), edMath($('esQ').value) || '<span class="soft">вопрос появится здесь</span>');
+  setHTML($('esAv'), edMath($('esA').value));
+  setHTML($('esRv'), $('esR').value.split('\n').filter(x => x.trim()).map(l => `<div>${edMath(l)}</div>`).join(''));
+}
+function edSlideData() {
+  const kind = document.querySelector('[name="esPic"]:checked')?.value || 'none';
+  let pic = { kind: 'none' };
+  if (kind === 'step' && $('esStep').value !== '') pic = { kind: 'step', i: +$('esStep').value };
+  if (kind === 'img' && ED.slide.pic.kind === 'img') pic = { kind: 'img', src: ED.slide.pic.src };
+  return { q: $('esQ').value, a: $('esA').value, note: $('esN').value, rec: $('esR').value.split('\n'), pic };
+}
+// сохранить слайд: новый встаёт после текущего шага (после слайдов учителя у этого шага — по порядку)
+function edSlideSave(id, data) {
+  const k = edKit(), clean = edValidSlides([{ id: id || 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), after: null, ...data }])[0];
+  if (!clean.q.trim() && !clean.a.trim() && !clean.rec.length && clean.pic.kind === 'none') return null;
+  const old = id ? k.slides.findIndex(x => x.id === id) : -1;
+  if (old >= 0) { clean.after = k.slides[old].after; k.slides[old] = clean; }
+  else {
+    clean.after = edAnchor();
+    const cur = edMineNow(), at = cur ? k.slides.findIndex(x => x.id === cur) + 1 : k.slides.length;
+    k.slides.splice(at, 0, clean);
+  }
+  edSave();
+  edRebuild(clean.id);
+  return clean.id;
+}
+function edSlideDel(id) {
+  if (!ED.sureDel) { ED.sureDel = setTimeout(() => { ED.sureDel = 0; if (ED.on) edPanel(); }, 4000); edPanel(); return; }
+  clearTimeout(ED.sureDel); ED.sureDel = 0;
+  const k = edKit(), pos = B.steps.findIndex(st => st._mine === id);
+  k.slides = k.slides.filter(x => x.id !== id);
+  edSave();
+  let back = 0;   // встаём на шаг темы, после которого стоял слайд
+  for (let i = pos; i >= 0; i--) if (B.steps[i]?._ti !== undefined) { back = B.steps[i]._ti; break; }
+  edRebuild(back);
+}
+// переставить слайд на одно место по доске: среди слайдов того же шага — порядком, через шаг темы — сменой шага
+function edSlideMove(id, dir) {
+  const k = edKit(), pos = B.steps.findIndex(st => st._mine === id), nb = B.steps[pos + dir];
+  if (pos < 0 || !nb) return;
+  const from = k.slides.findIndex(x => x.id === id), sl = k.slides[from];
+  if (nb._mine) {   // соседний слайд учителя: меняемся местами в списке
+    const j = k.slides.findIndex(x => x.id === nb._mine);
+    [k.slides[from], k.slides[j]] = [k.slides[j], k.slides[from]];
+    if (JSON.stringify(k.slides[from].after) !== JSON.stringify(k.slides[j].after)) [k.slides[from].after, k.slides[j].after] = [k.slides[j].after, k.slides[from].after];
+  } else if (dir > 0) {   // перепрыгиваем шаг темы вниз: теперь после него, первым
+    sl.after = { i: nb._ti, fp: edFp(nb) };
+    k.slides.splice(from, 1);
+    const first = k.slides.findIndex(x => x.after && x.after.i === nb._ti);
+    k.slides.splice(first >= 0 ? first : k.slides.length, 0, sl);
+  } else {   // вверх через шаг темы: после предыдущего шага темы (или в начало урока), последним
+    let prev = null;
+    for (let i = pos + dir - 1; i >= 0; i--) if (B.steps[i]._ti !== undefined) { prev = B.steps[i]; break; }
+    sl.after = prev ? { i: prev._ti, fp: edFp(prev) } : null;
+    k.slides.splice(from, 1);
+    let last = -1;
+    k.slides.forEach((x, j) => { if (JSON.stringify(x.after) === JSON.stringify(sl.after)) last = j; });
+    k.slides.splice(last + 1, 0, sl);
+  }
+  edSave();
+  edRebuild(id);
+}
+// картинка: уменьшаем до 1600 × 800 и сжимаем, чтобы урок оставался лёгким
+async function edImage(file) {
+  if (!file || !/^image\//.test(file.type)) throw new Error('Это не картинка.');
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('Картинка не открылась.')); i.src = url; });
+    for (const [max, q] of [[1600, 0.85], [1200, 0.75], [900, 0.65], [700, 0.55]]) {
+      const k = Math.min(1, max / img.naturalWidth, (max / 2) / img.naturalHeight), c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      const src = c.toDataURL('image/jpeg', q);
+      if (src.length <= ED_IMG_MAX && ED_IMG.test(src)) return src;
+    }
+    throw new Error('Картинка слишком большая даже после сжатия.');
+  } finally { URL.revokeObjectURL(url); }
+}
+$('edSlide').addEventListener('input', e => { if (e.target.matches('textarea')) edSlidePreview(); });
+$('edSlide').addEventListener('change', async e => {
+  if (e.target.id === 'esStep') document.querySelector('[name="esPic"][value="step"]').checked = true;
+  if (e.target.id !== 'esImg') return;
+  const f = e.target.files?.[0];
+  e.target.value = '';
+  if (!f) return;
+  $('esImgMsg').textContent = 'Готовлю картинку…';
+  try {
+    ED.slide.pic = { kind: 'img', src: await edImage(f) };
+    document.querySelector('[name="esPic"][value="img"]').checked = true;
+    $('esImgMsg').textContent = `Картинка выбрана (${Math.round(ED.slide.pic.src.length * 0.75 / 1024)} КБ).`;
+  } catch (err) { $('esImgMsg').textContent = err.message; }
+});
+$('edSlide').addEventListener('click', e => {
+  const a = e.target.closest('[data-eact]')?.dataset.eact;
+  if (a === 'es-save') {
+    const id = edSlideSave(ED.slide.id, edSlideData());
+    if (!id) { $('esImgMsg').textContent = 'Слайд пустой: напишите вопрос, ответ или запись, или выберите чертёж.'; return; }
+    $('edSlide').hidden = true;
+  }
+  if (a === 'es-cancel') $('edSlide').hidden = true;
+  if (a === 'es-del') { $('edSlide').hidden = true; ED.sureDel = 1; edSlideDel(ED.slide.id); }
+});
+$('edSlide').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); $('edSlide').hidden = true; } });
+// щелчок по тексту своего слайда в режиме правки открывает его окно
+for (const id of ['bQ', 'bA', 'bRec', 'bNoteT']) $(id).addEventListener('click', () => { if (ED.on && edMineNow()) edSlideOpen(edMineNow()); });
+
 // то, что уходит в файл и ссылку: только данные урока
 const edExport = () => {
-  const k = edKit(), out = { matshag: 1, slug: SLUG, edits: k.edits };
+  const k = edKit(), out = { matshag: 1, slug: SLUG, edits: k.edits, slides: k.slides };
   if (k.e !== undefined) out.e = k.e;
   if (k.title) out.title = k.title;
   return out;
@@ -373,9 +647,11 @@ function edParseFile(text) {
   }
   return edValid(data);
 }
+// правки и слайды учителя вместе
+const edCount = k => Object.keys(k.edits).length + (k.slides?.length || 0);
 const edPl = n => n % 10 === 1 && n % 100 !== 11 ? 'правка' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'правки' : 'правок';
 function edOffer(kit) {
-  const n = Object.keys(kit.edits).length, mine = Object.keys(edKit().edits).length;
+  const n = edCount(kit), mine = edCount(edKit());
   if (!mine) return edApply(kit);
   ED.pending = kit;
   $('edMsg').className = 'ed-msg';
@@ -392,7 +668,7 @@ function edApply(kit) {
   boardNumbers(false);
   boardGo(0, 0);
   edTitleShow();
-  const n = Object.keys(kit.edits).length;
+  const n = edCount(kit);
   if (ED.on) edMsg(`Открыто: ${n} ${edPl(n)}.`, 'ok');
 }
 // название урока — в верхней строке доски: учитель видит, какой урок открыт
@@ -424,7 +700,10 @@ async function edUnpack(s) {
 async function edLink() {
   const site = /^https?:$/.test(location.protocol) && /\/materials\/[a-z0-9-]+\.html$/.test(location.pathname);
   const base = site ? location.origin + location.pathname : `https://matshag.ru/materials/${SLUG}.html`;
-  const url = `${base}?mode=board#kit=${await edPack(JSON.stringify(edExport()))}`;
+  // картинки слайдов в адрес не помещаются: они есть в скачанном уроке и в файле правок
+  const kit = edExport();
+  kit.slides = kit.slides.map(sl => sl.pic?.kind === 'img' ? { ...sl, pic: { kind: 'none' } } : sl);
+  const url = `${base}?mode=board#kit=${await edPack(JSON.stringify(kit))}`;
   edMarkSaved();
   return url;
 }
@@ -435,7 +714,9 @@ async function edLinkShow() {
   $('edUrl').select?.();
   let copied = false;
   try { await navigator.clipboard.writeText(url); copied = true; } catch {}
+  const imgs = edKit().slides.some(sl => sl.pic?.kind === 'img');
   $('edUrlNote').textContent = (copied ? 'Ссылка скопирована. ' : 'Скопируйте ссылку. ') +
+    (imgs ? 'Картинки слайдов в ссылку не помещаются — они есть в скачанном уроке и в файле правок. ' : '') +
     (url.length > ED_LINK_MAX ? `Она длинная (${url.length} знаков) — почта или мессенджер могут её обрезать; надёжнее «Скачать мой урок».`
       : 'Откройте её на другом компьютере — урок будет с вашими правками.');
 }
@@ -447,7 +728,7 @@ async function edFromLink() {
   let kit = null, err = '';
   try { kit = edValid(JSON.parse(await edUnpack(m[1]))); }
   catch (e) { err = e instanceof SyntaxError || e instanceof DOMException || e instanceof TypeError ? 'Ссылка повреждена: правки не читаются.' : e.message; }
-  const n = kit ? Object.keys(kit.edits).length : 0, mine = Object.keys(edKit().edits).length;
+  const n = kit ? edCount(kit) : 0, mine = edCount(edKit());
   $('edAskP').textContent = err || `В ссылке ${n} ${edPl(n)} учителя${kit.title ? ` — «${kit.title}»` : ''}.` +
     (mine ? ` Ваши ${mine} ${edPl(mine)} в этом браузере будут заменены.` : '');
   $('edAskYes').hidden = !!err;

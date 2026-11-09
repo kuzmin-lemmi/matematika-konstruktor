@@ -61,7 +61,7 @@ addEventListener('afterprint', () => document.body.classList.remove('print-key',
 document.addEventListener('keydown', e => {
   // учитель печатает в поле правки (core/edit.js): клавиши — тексту, Esc — закончить поле
   if (e.target.closest?.('[contenteditable="true"]')) { if (e.key === 'Escape') e.target.blur(); return; }
-  if (e.target.matches?.('input') && e.key !== 'Escape') return;
+  if (e.target.matches?.('input, textarea, select') && e.key !== 'Escape') return;
   if (e.key === 'Escape') {
     if (!$('help').hidden) { $('help').hidden = true; return; }
     if (screen !== 'start' && !STUDENT) show('start');
@@ -113,11 +113,14 @@ window.APP = {
     get texts() { return ED.svg.map(s => s.key); }, pick: edPick, mine: edMine, revertStep: edRevertStep,
     set(f, html) { const c = ED.cur[f]; edSet(c.key, c.o, f === 'rec' ? edLines(html).join('\n') : html); renderBoard(); },
     svg(key, html) { const s = ED.svg.find(x => x.key === key); edSet(key, s.o, html); renderBoard(); },
-    revert(key) { delete edKit().edits[key]; edSave(); renderBoard(); }, revertAll() { edKit().edits = {}; edSave(); renderBoard(); },
+    revert(key) { delete edKit().edits[key]; edSave(); renderBoard(); }, revertAll() { edKit().edits = {}; edKit().slides = []; edSave(); edRebuild(0); },
     // комплект: скачанный урок (HTML со вшитыми правками), файл правок, ссылка; fromLink — разбор ссылки при открытии
     lessonHTML: edLessonHTML, kitJSON: edKitJSON, link: edLink, parseFile: edParseFile, offer: edOffer, apply: edApply,
     get fromLink() { return ED.link; }, get file() { return ED_FILE; }, get storeKey() { return ED_STORE; }, get unsaved() { return edUnsaved(); },
-    title(t) { $('edTitle').value = t; $('edTitle').dispatchEvent(new Event('change')); } },
+    title(t) { $('edTitle').value = t; $('edTitle').dispatchEvent(new Event('change')); },
+    // свои слайды: slide(data) — новый после текущего шага, slide(data, id) — изменить; math — запись формул
+    math: edMath, slide: (data, id = null) => edSlideSave(id, data), slideOpen: edSlideOpen,
+    slideMove: edSlideMove, slideDel(id) { ED.sureDel = 1; edSlideDel(id); }, get mineSlide() { return edMineNow(); } },
   GEO, HAS_LIVE: typeof LIVE !== 'undefined',
   print: { draw: drawSheets, set nums(v) { printNums = v; } },
   home: { state: H, start: homeStart, check: homeCheck, hint: homeHint, next: homeContinue, collect: homeCollect,

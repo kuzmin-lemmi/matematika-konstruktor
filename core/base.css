@@ -131,6 +131,18 @@ h1{font-size:clamp(30px,5vw,48px);line-height:1.1;margin:0 0 12px;letter-spacing
 .bedit .ed-msg.err{color:var(--bad);font-weight:600}
 .bedit .ed-url{font:inherit;width:min(100%,34em);min-height:36px;padding:2px 8px;border:1px solid var(--accent);border-radius:8px;background:var(--bg);color:var(--ink)}
 #board.preview .bedit{display:none}
+.ed-slide{width:min(720px,94vw);max-height:92vh;overflow:auto}
+.ed-slide label{display:grid;gap:4px;margin-top:10px;font-weight:600}
+.ed-slide textarea{font:inherit;font-weight:400;width:100%;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);resize:vertical}
+.ed-slide code{background:var(--info-soft);border-radius:4px;padding:0 4px}
+.ed-slide .es-pv{min-height:1.4em;padding:4px 10px;border-left:4px solid var(--line);font-size:22px;line-height:1.35}
+.ed-slide .es-pv.q{font-weight:700}
+.ed-slide .es-pv.a{color:var(--accent);font-weight:600}
+.ed-slide .es-pv .soft{color:var(--soft);font-weight:400;font-size:16px}
+.ed-slide .es-pic{margin-top:12px;border:1px solid var(--line);border-radius:8px;display:grid;gap:6px}
+.ed-slide .es-pic label{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0;font-weight:400}
+.ed-slide .es-pic select{font:inherit;max-width:100%;min-height:36px}
+.ed-slide #esDel[hidden]{display:none}
 @media (max-width:1150px){ .bbar .ttl{visibility:hidden} .bbar button .t{display:none} }
 /* ноутбук и проектор 1366 × 768: текст поджимается до 28px, остальная высота уходит чертежу */
 @media (max-height:860px){

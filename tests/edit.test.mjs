@@ -230,3 +230,147 @@ test(`${PILOT}: ссылка на урок — спрашивает «Приме
   assert.equal(broken.window.document.getElementById('edAskYes').hidden, true);
   assert.deepEqual(broken.errors.map(x => x.message), []);
 });
+
+// ---------- этап 3: свои слайды ----------
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+test(`${PILOT}: запись формул учителя`, t => {
+  const M = openPilot(t).window.APP.edit.math;
+  assert.equal(M('x^2 + 1'), '<i>x</i><sup>2</sup> + 1');
+  assert.equal(M('a_1'), '<i>a</i><sub>1</sub>');
+  assert.equal(M('sqrt(25) = 5'), '<span class="rt"><span class="rs">√</span><span class="rad">25</span></span> = 5');
+  assert.equal(M('(a+1)/(b)'), '<span class="frac"><span><i>a</i>+1</span><span><i>b</i></span></span>');
+  assert.equal(M('1/2'), '<span class="frac"><span>1</span><span>2</span></span>');
+  assert.equal(M('3*a - 5'), '3·<i>a</i> − 5');
+  assert.equal(M('из-за'), 'из-за', 'дефис в русском слове остаётся');
+  assert.equal(M('x <= 3, y != 0'), '<i>x</i>  ≤  3, <i>y</i>  ≠  0');
+  assert.equal(M('2^(n+1)'), '2<sup><i>n</i>+1</sup>');
+  assert.equal(M('<b onclick=x>&'), '&lt;<i>b</i> <i>onclick</i>=<i>x</i>&gt;&amp;', 'разметка из текста не проходит');
+  assert.equal(M('строка 1\nстрока 2'), 'строка 1<br>строка 2');
+  assert.equal(M('a/'), '<i>a</i>/');
+  assert.equal(M('(1'), '(1');
+});
+
+test(`${PILOT}: свой слайд — встаёт после шага, переживает перезагрузку и другие числа, правки шагов темы не сдвигаются`, t => {
+  const { window: w, errors } = openPilot(t), A = w.APP, d = w.document;
+  const n0 = A.board.steps.length;
+  A.edit.toggle(true);
+  A.board.go(0, 0);
+  const id = A.edit.slide({ q: 'Сколько будет 3a + 2a?', a: '5a', rec: ['3a + 2a = 5a'], note: 'спросить у доски' });
+  assert.equal(A.board.steps.length, n0 + 1);
+  assert.equal(A.board.i, 1, 'слайд сразу после текущего шага');
+  assert.equal(A.edit.mineSlide, id);
+  assert.match(d.getElementById('bCnt').textContent, /Шаг 2 из \d+ · мой слайд/);
+  assert.equal(qText(w), 'Сколько будет 3<i>a</i> + 2<i>a</i>?');
+  assert.equal(d.querySelectorAll('#bRec .ln').length, 0, 'запись — после ответа');
+  A.board.next();
+  assert.equal(d.getElementById('bA').innerHTML, '5<i>a</i>');
+  assert.equal(d.querySelector('#bRec .ln').innerHTML, '3<i>a</i> + 2<i>a</i> = 5<i>a</i>');
+  assert.equal(d.getElementById('bQ').hasAttribute('contenteditable'), false, 'слайд правится в своём окне');
+  // правка шага темы после слайда: ключ — номер шага темы
+  A.board.go(2, 0);
+  A.edit.set('q', 'Правка второго шага темы');
+  assert.ok(A.edit.kit.edits['main:1:q'], 'ключ правки — шаг темы 2 (номер 1)');
+  assert.deepEqual(errors.map(e => e.message), []);
+
+  const kit = w.localStorage.getItem(`matshag:${PILOT}:kit`);
+  const b = openPilot(t, pilotHTML, { storage: { [`matshag:${PILOT}:kit`]: kit } }).window;
+  assert.equal(b.APP.board.steps[1]._mine, id, 'после перезагрузки слайд на месте');
+  b.APP.board.go(2, 0);
+  assert.equal(qText(b), 'Правка второго шага темы');
+  for (let k = 0; k < 3; k++) {
+    b.APP.board.numbers(true);
+    assert.equal(b.APP.board.steps[1]._mine, id, 'другие числа — слайд после того же шага');
+  }
+  b.APP.board.go(0, 0);
+  for (let k = 0; k < 2 * b.APP.board.steps.length; k++) b.APP.board.next();
+  for (let k = 0; k < 2 * b.APP.board.steps.length; k++) b.APP.board.prev();
+  assert.equal(b.APP.board.i, 0);
+});
+
+test(`${PILOT}: чертёж слайда — шаг урока или картинка; опасная картинка не проходит`, t => {
+  const { window: w } = openPilot(t), A = w.APP, d = w.document;
+  A.edit.toggle(true);
+  A.board.go(1, 0);
+  A.edit.slide({ q: 'Картинка', pic: { kind: 'img', src: PNG } });
+  assert.equal(d.querySelector('#bStage image').getAttribute('href'), PNG);
+  A.edit.slide({ q: 'Чертёж шага 2', pic: { kind: 'step', i: 1 } });
+  assert.ok(d.querySelectorAll('#bStage svg text').length > 0, 'чертёж шага урока на слайде');
+  const id = A.edit.slide({ q: 'Плохая', pic: { kind: 'img', src: 'javascript:alert(1)' } });
+  assert.equal(A.edit.kit.slides.find(s => s.id === id).pic.kind, 'none');
+  assert.equal(d.querySelector('#bStage image'), null);
+  assert.equal(A.edit.slide({ q: '  ', a: '' }), null, 'пустой слайд не добавляется');
+});
+
+test(`${PILOT}: слайды переставляются, убираются; «Вернуть весь урок» убирает и их`, t => {
+  const { window: w } = openPilot(t), A = w.APP;
+  A.edit.toggle(true);
+  A.board.go(0, 0);
+  const s1 = A.edit.slide({ q: 'Первый' });
+  const s2 = A.edit.slide({ q: 'Второй' });
+  const order = () => A.board.steps.map(s => s._mine || 'T' + s._ti).slice(0, 5).join(' ');
+  assert.equal(order(), `T0 ${s1} ${s2} T1 T2`);
+  A.edit.slideMove(s2, -1);
+  assert.equal(order(), `T0 ${s2} ${s1} T1 T2`);
+  A.edit.slideMove(s1, 1);
+  assert.equal(order(), `T0 ${s2} T1 ${s1} T2`, 'через шаг темы вниз');
+  A.edit.slideMove(s2, -1);
+  assert.equal(order(), `${s2} T0 T1 ${s1} T2`, 'в начало урока');
+  A.edit.slideMove(s2, -1);
+  assert.equal(order(), `${s2} T0 T1 ${s1} T2`, 'выше начала некуда');
+  A.edit.slideDel(s1);
+  assert.equal(order(), `${s2} T0 T1 T2 T3`);
+  A.edit.revertAll();
+  assert.equal(A.edit.kit.slides.length, 0);
+  assert.ok(A.board.steps.every(s => !s._mine));
+});
+
+test(`${PILOT}: слайды в скачанном уроке, файле и ссылке; потерянный шаг — слайд в конце`, async t => {
+  const { window: w } = openPilot(t), A = w.APP;
+  A.board.go(0, 0);
+  const id = A.edit.slide({ q: 'Со скачанной картинкой', pic: { kind: 'img', src: PNG } });
+  const copy = openPilot(t, A.edit.lessonHTML()).window;
+  assert.equal(copy.APP.board.steps[1]._mine, id);
+  copy.APP.board.go(1, 0);
+  assert.equal(copy.document.querySelector('#bStage image').getAttribute('href'), PNG, 'картинка в скачанном уроке');
+  assert.equal(A.edit.parseFile(A.edit.kitJSON()).slides[0].pic.kind, 'img', 'картинка в файле правок');
+  const url = await A.edit.link();
+  const b = loadHtml(pilotHTML, { query: '?mode=board' + url.slice(url.indexOf('#')), slug: PILOT });
+  t.after(b.close);
+  await b.window.APP.edit.fromLink;
+  b.window.document.getElementById('edAskYes').click();
+  const sl = b.window.APP.edit.kit.slides[0];
+  assert.equal(sl.id, id);
+  assert.equal(sl.pic.kind, 'none', 'картинки в ссылку не кладём');
+
+  const lost = JSON.stringify({ matshag: 1, slug: PILOT, edits: {}, slides: [{ id: 'old1', after: { i: 3, fp: 'zzzz' }, q: 'Шаг темы изменился', a: '', rec: [], pic: { kind: 'none' } }] });
+  const L = openPilot(t, pilotHTML, { storage: { [`matshag:${PILOT}:kit`]: lost } }).window;
+  const last = L.APP.board.steps.at(-1);
+  assert.equal(last._mine, 'old1');
+  assert.equal(last._lost, true);
+});
+
+test(`${PILOT}: повреждённый вшитый комплект — урок открывается, учитель видит причину`, t => {
+  const broken = pilotHTML.replace('<body>', '<body><script type="application/json" id="teacher-kit">{"matshag":1,oops</' + 'script>');
+  const m = openPilot(t, broken);
+  assert.deepEqual(m.errors.map(e => e.message), []);
+  m.window.APP.edit.toggle(true);
+  assert.match(m.window.document.getElementById('edMsg').textContent, /не прочитались: файл повреждён/);
+});
+
+for (const slug of [...SLUGS, ...(process.env.MATSHAG_CHECK_SLUG ? [] : [TEMPLATE])]) {
+  test(`${slug}: свой слайд посреди урока — доска проходит все шаги без ошибок`, t => {
+    const html = slug === TEMPLATE ? buildTemplate() : buildMaterial(slug);
+    const m = loadHtml(html, { query: '?mode=board', slug });
+    t.after(m.close);
+    const A = m.window.APP;
+    A.board.go(Math.floor(A.board.steps.length / 2), 0);
+    A.edit.slide({ q: 'x^2 = 4', a: 'x = 2 или x = -2', rec: ['x_1 = 2', 'x_2 = -2'], pic: { kind: 'step', i: 0 } });
+    A.board.go(0, 0);
+    for (let k = 0; k < 2 * A.board.steps.length; k++) A.board.next();
+    for (let k = 0; k < 2 * A.board.steps.length; k++) A.board.prev();
+    A.board.numbers(true);
+    assert.ok(A.board.steps.some(s => s._mine));
+    assert.deepEqual(m.errors.map(e => e.message), []);
+  });
+}
